@@ -17,7 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     lobby: document.getElementById('screen-lobby'),
     question: document.getElementById('screen-question'),
     feedback: document.getElementById('screen-feedback'),
-    finished: document.getElementById('screen-finished')
+    finished: document.getElementById('screen-finished'),
+    prepare: document.getElementById('screen-prepare')
   };
 
   const errorToast = document.getElementById('error-toast');
@@ -29,8 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const lobbyWelcome = document.getElementById('lobby-welcome');
   const lobbyColorIndicator = document.getElementById('lobby-color-indicator');
   
+  const playerHudName = document.getElementById('player-hud-name');
+  const playerScoreVal = document.getElementById('player-score-val');
   const questionCategory = document.getElementById('question-category');
-  const playerScoreHud = document.getElementById('player-score-hud');
   const questionText = document.getElementById('question-text');
   const timerBar = document.getElementById('timer-bar');
   const timerText = document.getElementById('timer-text');
@@ -133,6 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
     lobbyColorIndicator.style.color = player.color;
     lobbyColorIndicator.style.backgroundColor = player.color;
     
+    // Display player name in HUD navbar
+    playerHudName.textContent = player.name;
+    playerHudName.style.display = 'block';
+    
     showScreen('lobby');
   });
 
@@ -142,9 +148,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const self = players.find(p => p.id === playerDetails.id);
       if (self) {
         activeScore = self.score;
-        playerScoreHud.textContent = `النقاط: ${activeScore}`;
+        playerScoreVal.textContent = activeScore;
       }
     }
+  });
+
+  // Socket: Question Preparation Countdown
+  socket.on('prepare-question', ({ seconds }) => {
+    const prepCountdown = document.getElementById('prepare-countdown');
+    prepCountdown.textContent = seconds;
+    showScreen('prepare');
+
+    let count = seconds;
+    sounds.playTick(); // Tick sound for the first second
+    const interval = setInterval(() => {
+      count--;
+      if (count >= 1) {
+        prepCountdown.textContent = count;
+        sounds.playTick();
+      } else {
+        clearInterval(interval);
+      }
+    }, 1000);
   });
 
   // Socket: Question Received

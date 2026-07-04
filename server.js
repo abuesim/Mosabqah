@@ -188,37 +188,50 @@ io.on('connection', (socket) => {
     const question = await getQuestion(questionId);
     if (!room || !question) return;
 
-    // Clear previous timer if any
+    // Clear previous timers if any
     if (activeTimers[roomCode]) {
       clearTimeout(activeTimers[roomCode]);
     }
 
-    await updateRoomQuestion(roomCode, questionId, 'showing');
+    // Broadcast preparation countdown (5 seconds) to room
+    const prepSeconds = 5;
+    io.to(roomCode).emit('prepare-question', { seconds: prepSeconds });
+    console.log(`Starting 5s question prep countdown for room ${roomCode}`);
 
-    // Clean options for players (hide answer)
-    const playerQuestion = {
-      id: question.id,
-      question_text: question.question_text,
-      option1: question.option1,
-      option2: question.option2,
-      option3: question.option3,
-      option4: question.option4,
-      category: question.category,
-      difficulty: question.difficulty
-    };
-
-    // Broadcast question to all in the room
-    io.to(roomCode).emit('question-shown', {
-      question: playerQuestion,
-      timerDuration: room.timer_duration
-    });
-
-    // Set server-side fallback timer to mark time-up automatically
+    // Set timeout for 5 seconds before showing the actual question
     activeTimers[roomCode] = setTimeout(async () => {
-      await updateRoomQuestionStatus(roomCode, 'time_up');
-      io.to(roomCode).emit('timer-expired');
-      console.log(`Timer expired for room ${roomCode}`);
-    }, room.timer_duration * 1000);
+      // Re-fetch room in case state changed
+      const freshRoom = await getRoom(roomCode);
+      if (!freshRoom || freshRoom.status === 'finished') return;
+
+      await updateRoomQuestion(roomCode, questionId, 'showing');
+
+      // Clean options for players (hide correct answer)
+      const playerQuestion = {
+        id: question.id,
+        question_text: question.question_text,
+        option1: question.option1,
+        option2: question.option2,
+        option3: question.option3,
+        option4: question.option4,
+        category: question.category,
+        difficulty: question.difficulty
+      };
+
+      // Broadcast question to all in the room
+      io.to(roomCode).emit('question-shown', {
+        question: playerQuestion,
+        timerDuration: freshRoom.timer_duration
+      });
+
+      // Set server-side fallback timer to mark time-up automatically
+      activeTimers[roomCode] = setTimeout(async () => {
+        await updateRoomQuestionStatus(roomCode, 'time_up');
+        io.to(roomCode).emit('timer-expired');
+        console.log(`Timer expired for room ${roomCode}`);
+      }, freshRoom.timer_duration * 1000);
+      
+    }, prepSeconds * 1000);
   });
 
   // 5. Submit Answer (Player)

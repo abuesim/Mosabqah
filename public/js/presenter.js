@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     lobby: document.getElementById('screen-lobby'),
     question: document.getElementById('screen-question'),
     result: document.getElementById('screen-result'),
-    finished: document.getElementById('screen-finished')
+    finished: document.getElementById('screen-finished'),
+    prepare: document.getElementById('screen-prepare')
   };
 
   const roomCodeDisplay = document.getElementById('room-code-display');
@@ -108,6 +109,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     showScreen('lobby');
+  });
+
+  // Socket: Question Preparation Countdown
+  socket.on('prepare-question', ({ seconds }) => {
+    const tvPrepCountdown = document.getElementById('tv-prepare-countdown');
+    tvPrepCountdown.textContent = seconds;
+    showScreen('prepare');
+
+    let count = seconds;
+    sounds.playTick(); // Tick sound for the first second
+    const interval = setInterval(() => {
+      count--;
+      if (count >= 1) {
+        tvPrepCountdown.textContent = count;
+        sounds.playTick();
+      } else {
+        clearInterval(interval);
+      }
+    }, 1000);
   });
 
   // Socket: Sync existing questions (in case of reloads)
