@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مسابقة - تطبيق المسابقات العائلية التفاعلي</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏆</text></svg>">
+</head>
+<body>
+  <div class="container" style="max-width: 600px; padding-top: 80px;">
+    <div class="glass-panel text-center pulse-slow" style="text-align: center;">
+      <div style="font-size: 80px; margin-bottom: 10px;">🏆</div>
+      <h1 class="title-gradient" style="font-size: 40px; margin-bottom: 10px;">مُسَابَقَة</h1>
+      <p style="color: var(--text-secondary); font-size: 18px; margin-bottom: 40px;">
+        التطبيق التفاعلي للمسابقات والتحديات العائلية اللحظية
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <a href="player.html" class="btn" style="padding: 16px; font-size: 18px;">
+          🎮 انضمام كلاعب (عبر الجوال)
+        </a>
+        
+        <a href="presenter.html" class="btn btn-secondary" style="padding: 14px;">
+          📺 شاشة العرض الرئيسية (للجمهور)
+        </a>
+        
+        <a href="admin.html" class="btn btn-secondary" style="padding: 14px; background: rgba(165, 94, 234, 0.15); border-color: rgba(165, 94, 234, 0.3);">
+          ⚙️ لوحة تحكم المقدم (سري)
+        </a>
+      </div>
+
+      <div style="margin-top: 40px; font-size: 13px; color: var(--text-muted);">
+        صنع بحب للمناسبات والجمعات العائلية الممتعة ❤️
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    .pulse-slow {
+      animation: pulseSlow 6s infinite ease-in-out;
+    }
+    @keyframes pulseSlow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+  </style>
+</body>
+</html>

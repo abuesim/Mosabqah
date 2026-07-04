@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>واجهة المشارك - مسابقة</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📱</text></svg>">
+</head>
+<body>
+  <div class="container" style="max-width: 500px;">
+    
+    <!-- HEADER -->
+    <header class="navbar">
+      <div class="logo">
+        <span>📱</span>
+        <span>مسابقة الجوال</span>
+      </div>
+      <div id="connection-status" style="font-size: 14px; color: var(--color-green);">متصل 🟢</div>
+    </header>
+
+    <!-- ERROR TOAST -->
+    <div id="error-toast" style="display: none; background: var(--color-red); color: white; padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-weight: bold; text-align: center; box-shadow: var(--shadow-sm);">
+    </div>
+
+    <!-- SCREEN 1: JOIN ROOM -->
+    <section id="screen-join" class="screen active">
+      <div class="glass-panel">
+        <h2 style="text-align: center; margin-bottom: 24px;" class="title-gradient">انضمام للمسابقة</h2>
+        
+        <div class="form-group">
+          <label class="form-label" for="room-code">رمز الغرفة (4 أرقام)</label>
+          <input type="number" id="room-code" class="form-input" placeholder="مثال: 1234" pattern="[0-9]*" inputmode="numeric" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="player-name">اسمك الكريم</label>
+          <input type="text" id="player-name" class="form-input" placeholder="اكتب اسمك هنا" maxlength="15" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">اختر لونك المفضل</label>
+          <div class="color-picker" id="color-picker">
+            <div class="color-option selected" data-color="#ff4757" style="background-color: #ff4757;"></div>
+            <div class="color-option" data-color="#1e90ff" style="background-color: #1e90ff;"></div>
+            <div class="color-option" data-color="#2ed573" style="background-color: #2ed573;"></div>
+            <div class="color-option" data-color="#ffa502" style="background-color: #ffa502;"></div>
+            <div class="color-option" data-color="#a55eea" style="background-color: #a55eea;"></div>
+          </div>
+        </div>
+
+        <button id="btn-join" class="btn" style="width: 100%; margin-top: 10px;">دخول الغرفة 🚀</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: LOBBY WAITING -->
+    <section id="screen-lobby" class="screen">
+      <div class="glass-panel text-center" style="text-align: center; padding: 40px 20px;">
+        <div class="pulse" style="font-size: 60px; margin-bottom: 20px;">⏳</div>
+        <h2 id="lobby-welcome" class="title-gradient" style="margin-bottom: 12px;">أهلاً بك!</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">تم تسجيلك بنجاح. يرجى الانتظار حتى يبدأ المقدم المسابقة الشاشات الرئيسية.</p>
+        
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--glass-border);">
+          <div style="font-size: 14px; color: var(--text-secondary);">لونك المختار:</div>
+          <div id="lobby-color-indicator" style="width: 30px; height: 30px; border-radius: 50%; margin: 8px auto; box-shadow: 0 0 10px currentColor;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: ANSWER QUESTION -->
+    <section id="screen-question" class="screen">
+      <div class="glass-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <span id="question-category" style="background: rgba(112, 161, 255, 0.15); color: var(--primary-accent); padding: 4px 12px; border-radius: 30px; font-size: 13px; font-weight: bold;">عام</span>
+          <span id="player-score-hud" style="font-weight: bold; font-size: 15px; color: var(--color-yellow);">النقاط: 0</span>
+        </div>
+
+        <h3 id="question-text" style="font-size: 20px; line-height: 1.5; margin-bottom: 20px; text-align: center;">جاري تحميل السؤال...</h3>
+        
+        <!-- Timer bar -->
+        <div class="timer-container">
+          <div id="timer-bar" class="timer-bar"></div>
+        </div>
+        <div style="text-align: center; font-weight: bold; margin-bottom: 20px;" id="timer-text">30</div>
+
+        <!-- Touch Options Grid for Mobile -->
+        <div class="options-grid">
+          <button class="option-btn opt-1" data-opt="1">
+            <span class="option-badge">أ</span>
+            <span id="opt-text-1">الخيار الأول</span>
+          </button>
+          <button class="option-btn opt-2" data-opt="2">
+            <span class="option-badge">ب</span>
+            <span id="opt-text-2">الخيار الثاني</span>
+          </button>
+          <button class="option-btn opt-3" data-opt="3">
+            <span class="option-badge">ج</span>
+            <span id="opt-text-3">الخيار الثالث</span>
+          </button>
+          <button class="option-btn opt-4" data-opt="4">
+            <span class="option-badge">د</span>
+            <span id="opt-text-4">الخيار الرابع</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: ANSWER FEEDBACK / WAIT -->
+    <section id="screen-feedback" class="screen">
+      <div class="glass-panel text-center" style="text-align: center; padding: 50px 20px;">
+        <div id="feedback-icon" style="font-size: 70px; margin-bottom: 20px;">⏳</div>
+        <h2 id="feedback-title" class="title-gradient" style="margin-bottom: 16px;">تم تسجيل الإجابة!</h2>
+        <p id="feedback-desc" style="color: var(--text-secondary); margin-bottom: 30px;">بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...</p>
+        
+        <div id="score-earned-panel" style="display: none; background: rgba(46, 213, 115, 0.1); border: 1px solid rgba(46, 213, 115, 0.2); padding: 15px; border-radius: var(--radius-md); max-width: 250px; margin: 0 auto 20px;">
+          <div style="font-size: 14px; color: var(--text-secondary);">النقاط المكتسبة:</div>
+          <div id="feedback-points" style="font-size: 24px; font-weight: 800; color: var(--color-green);">+120</div>
+        </div>
+
+        <div style="font-size: 16px; font-weight: bold; color: var(--text-primary);">
+          مجموع نقاطك الحالي: <span id="feedback-total-score" style="color: var(--primary-accent);">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: GAME FINISHED -->
+    <section id="screen-finished" class="screen">
+      <div class="glass-panel text-center" style="text-align: center; padding: 40px 20px;">
+        <div style="font-size: 70px; margin-bottom: 20px;">👑</div>
+        <h2 class="title-gradient" style="margin-bottom: 12px;">انتهت المسابقة!</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">شكراً لمشاركتك المتميزة في التحدي العائلي.</p>
+        
+        <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); margin-bottom: 35px;">
+          <div style="font-size: 16px; color: var(--text-secondary); margin-bottom: 8px;">مجموع نقاطك النهائي:</div>
+          <div id="final-total-score" style="font-size: 36px; font-weight: 800; color: var(--color-yellow);">0</div>
+        </div>
+
+        <a href="index.html" class="btn" style="width: 100%;">العودة للرئيسية 🏠</a>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- SCRIPT -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="js/player.js"></script>
+</body>
+</html>
