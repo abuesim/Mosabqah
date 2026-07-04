@@ -144,6 +144,15 @@
         <h2 class="title-gradient" style="margin-bottom: 12px;">انتهت المسابقة!</h2>
         <p style="color: var(--text-secondary); margin-bottom: 30px;">شكراً لمشاركتك المتميزة في التحدي العائلي.</p>
         
+        <!-- Added rank display -->
+        <div id="player-final-rank" style="font-size: 24px; font-weight: 800; color: var(--color-yellow); margin-bottom: 20px; display: none;">المركز الأول 🥇</div>
+        
+        <!-- Added tie/co-winners display -->
+        <div id="co-winners-panel" style="display: none; background: rgba(112, 161, 255, 0.08); border: 1px solid rgba(112, 161, 255, 0.2); padding: 12px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 14px;">
+          <span>مكرر مع: </span>
+          <strong id="co-winners-names" style="color: var(--primary-accent);"></strong>
+        </div>
+        
         <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); margin-bottom: 35px;">
           <div style="font-size: 16px; color: var(--text-secondary); margin-bottom: 8px;">مجموع نقاطك النهائي:</div>
           <div id="final-total-score" style="font-size: 36px; font-weight: 800; color: var(--color-yellow);">0</div>

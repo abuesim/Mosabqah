@@ -322,6 +322,46 @@ document.addEventListener('DOMContentLoaded', () => {
   // Socket: Game Finished
   socket.on('game-finished', ({ players }) => {
     finalTotalScore.textContent = activeScore;
+
+    if (playerDetails && players && players.length > 0) {
+      const myId = playerDetails.id;
+      const myScore = activeScore;
+
+      // Find all players with the same score (excluding self)
+      const coWinners = players.filter(p => p.score === myScore && p.id !== myId);
+      
+      // Calculate exact rank: how many players have a strictly higher score?
+      const higherScorersCount = players.filter(p => p.score > myScore).length;
+      const myRank = higherScorersCount + 1;
+
+      // Format rank text
+      let rankText = '';
+      if (myRank === 1) rankText = 'المركز الأول 🏆🥇';
+      else if (myRank === 2) rankText = 'المركز الثاني 🥈';
+      else if (myRank === 3) rankText = 'المركز الثالث 🥉';
+      else rankText = `المركز ${myRank}`;
+
+      // Set rank text on screen
+      const playerRankDisplay = document.getElementById('player-final-rank');
+      if (playerRankDisplay) {
+        playerRankDisplay.textContent = rankText;
+        playerRankDisplay.style.display = 'block';
+      }
+
+      // Display ties / co-winners if any
+      const coWinnersPanel = document.getElementById('co-winners-panel');
+      const coWinnersNames = document.getElementById('co-winners-names');
+      if (coWinnersPanel && coWinnersNames) {
+        if (coWinners.length > 0) {
+          const namesStr = coWinners.map(p => p.name).join('، ');
+          coWinnersNames.textContent = namesStr;
+          coWinnersPanel.style.display = 'block';
+        } else {
+          coWinnersPanel.style.display = 'none';
+        }
+      }
+    }
+
     showScreen('finished');
   });
 
