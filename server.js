@@ -92,14 +92,17 @@ io.on('connection', (socket) => {
 
   // 2. Join Room (Admin, Presenter, Player)
   socket.on('join-room', async ({ roomCode, role, name, color, password }) => {
-    const room = await getRoom(roomCode);
+    const cleanRoomCode = roomCode ? roomCode.toString().trim() : '';
+    const room = await getRoom(cleanRoomCode);
+    console.log(`[Socket: ${socket.id}] Join room request: Code="${cleanRoomCode}" (Original: "${roomCode}"), Role=${role}, PlayerName="${name || ''}", RoomExists=${!!room}`);
+    
     if (!room) {
       socket.emit('error-msg', 'غرفة غير موجودة');
       return;
     }
 
-    socket.join(roomCode);
-    socket.roomId = roomCode;
+    socket.join(cleanRoomCode);
+    socket.roomId = cleanRoomCode;
     socket.role = role;
 
     if (role === 'admin') {
@@ -112,18 +115,18 @@ io.on('connection', (socket) => {
       const questionsList = await getQuestions();
       socket.emit('questions-list', questionsList);
 
-      const players = await getPlayers(roomCode);
+      const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
     } 
     else if (role === 'presenter') {
       socket.emit('presenter-joined', { room });
-      const players = await getPlayers(roomCode);
+      const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
       
       // If there is an active question, sync it
       if (room.current_question_id && room.question_status !== 'idle') {
         const question = await getQuestion(room.current_question_id);
-        const answers = await getAnswersForQuestion(roomCode, room.current_question_id);
+        const answers = await getAnswersForQuestion(cleanRoomCode, room.current_question_id);
         socket.emit('sync-question', {
           question,
           questionStatus: room.question_status,
@@ -144,7 +147,7 @@ io.on('connection', (socket) => {
       }
 
       // Check if player name already exists in this room
-      const existingPlayers = await getPlayers(roomCode);
+      const existingPlayers = await getPlayers(cleanRoomCode);
       const nameExists = existingPlayers.some(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
       if (nameExists) {
         socket.emit('error-msg', 'هذا الاسم مسجل بالفعل، يرجى اختيار اسم آخر');
@@ -156,13 +159,13 @@ io.on('connection', (socket) => {
       socket.playerName = name;
 
       try {
-        const player = await addPlayer(playerId, roomCode, name, color);
+        const player = await addPlayer(playerId, cleanRoomCode, name, color);
         socket.emit('player-joined', { player, room });
         
         // Notify others
-        const players = await getPlayers(roomCode);
-        io.to(roomCode).emit('player-list-update', players);
-        console.log(`Player ${name} joined room ${roomCode}`);
+        const players = await getPlayers(cleanRoomCode);
+        io.to(cleanRoomCode).emit('player-list-update', players);
+        console.log(`Player ${name} joined room ${cleanRoomCode}`);
       } catch (err) {
         socket.emit('error-msg', 'خطأ أثناء الانضمام للغرفة');
         console.error(err);
