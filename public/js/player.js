@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedColor = '#ff4757'; // Default selected red color
   let activeScore = 0;
 
+  // Generate or retrieve persistent 6-digit Player ID from localStorage
+  let playerId = localStorage.getItem('mosabqah_player_id');
+  if (!playerId) {
+    playerId = Math.floor(100000 + Math.random() * 900000).toString();
+    localStorage.setItem('mosabqah_player_id', playerId);
+  }
+
   // DOM Elements
   const screens = {
     join: document.getElementById('screen-join'),
@@ -111,12 +118,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Join room
+    // Join room with persistent playerId
     socket.emit('join-room', {
       roomCode,
       role: 'player',
       name: playerName,
-      color: selectedColor
+      color: selectedColor,
+      playerId: playerId
     });
   });
 
@@ -380,7 +388,8 @@ document.addEventListener('DOMContentLoaded', () => {
         roomCode: currentRoom.id,
         role: 'player',
         name: playerDetails.name,
-        color: playerDetails.color
+        color: playerDetails.color,
+        playerId: playerId
       });
     }
   });

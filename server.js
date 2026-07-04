@@ -91,10 +91,11 @@ io.on('connection', (socket) => {
   });
 
   // 2. Join Room (Admin, Presenter, Player)
-  socket.on('join-room', async ({ roomCode, role, name, color, password }) => {
+  socket.on('join-room', async ({ roomCode, role, name, color, password, playerId }) => {
     const cleanRoomCode = roomCode ? roomCode.toString().trim() : '';
     const room = await getRoom(cleanRoomCode);
-    console.log(`[Socket: ${socket.id}] Join room request: Code="${cleanRoomCode}" (Original: "${roomCode}"), Role=${role}, PlayerName="${name || ''}", RoomExists=${!!room}`);
+    const cleanPlayerId = playerId ? playerId.toString().trim() : socket.id;
+    console.log(`[Socket: ${socket.id}] Join room request: Code="${cleanRoomCode}" (Original: "${roomCode}"), Role=${role}, PlayerName="${name || ''}", RoomExists=${!!room}, PlayerId="${cleanPlayerId}"`);
     
     if (!room) {
       socket.emit('error-msg', 'غرفة غير موجودة');
@@ -146,26 +147,39 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Check if player name already exists in this room
+      socket.playerId = cleanPlayerId;
+      socket.playerName = name;
+
       const existingPlayers = await getPlayers(cleanRoomCode);
-      const nameExists = existingPlayers.some(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+      const reconnectingPlayer = existingPlayers.find(p => p.id === cleanPlayerId);
+
+      if (reconnectingPlayer) {
+        // Player is reconnecting! Update their active status to true
+        await setPlayerActiveStatus(cleanPlayerId, true);
+        socket.emit('player-joined', { player: reconnectingPlayer, room });
+        
+        // Notify others
+        const players = await getPlayers(cleanRoomCode);
+        io.to(cleanRoomCode).emit('player-list-update', players);
+        console.log(`Player ${name} reconnected to room ${cleanRoomCode} with persistent ID ${cleanPlayerId}`);
+        return;
+      }
+
+      // Check if player name already exists in this room (for another player ID)
+      const nameExists = existingPlayers.some(p => p.name.trim().toLowerCase() === name.trim().toLowerCase() && p.id !== cleanPlayerId);
       if (nameExists) {
         socket.emit('error-msg', 'هذا الاسم مسجل بالفعل، يرجى اختيار اسم آخر');
         return;
       }
 
-      const playerId = socket.id;
-      socket.playerId = playerId;
-      socket.playerName = name;
-
       try {
-        const player = await addPlayer(playerId, cleanRoomCode, name, color);
+        const player = await addPlayer(cleanPlayerId, cleanRoomCode, name, color);
         socket.emit('player-joined', { player, room });
         
         // Notify others
         const players = await getPlayers(cleanRoomCode);
         io.to(cleanRoomCode).emit('player-list-update', players);
-        console.log(`Player ${name} joined room ${cleanRoomCode}`);
+        console.log(`Player ${name} joined room ${cleanRoomCode} with persistent ID ${cleanPlayerId}`);
       } catch (err) {
         socket.emit('error-msg', 'خطأ أثناء الانضمام للغرفة');
         console.error(err);
