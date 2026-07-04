@@ -314,6 +314,9 @@ io.on('connection', (socket) => {
     // Retrieve updated leaderboards
     const players = await getPlayers(roomCode);
 
+    // Broadcast updated player list so admin dashboard updates and sorts scores immediately
+    io.to(roomCode).emit('player-list-update', players);
+
     // Send reveal events to players with their status
     const playerSockets = await io.in(roomCode).fetchSockets();
     for (const playerSocket of playerSockets) {
