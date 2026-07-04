@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // State variables
   let currentRoomId = null;
-  let qrCodeInstance = null;
   let countdownInterval = null;
 
   // DOM Elements
@@ -102,19 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Build URL for players to join
     const playerJoinUrl = `${window.location.origin}/player.html?room=${room.id}`;
     
-    // Generate QR Code
-    if (qrCodeInstance) {
-      qrCodeInstance.clear();
-      qrCodeInstance.makeCode(playerJoinUrl);
-    } else {
-      qrCodeInstance = new QRCode(document.getElementById('qrcode'), {
-        text: playerJoinUrl,
-        width: 180,
-        height: 180,
-        colorDark: '#0f111a',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
+    // Generate QR Code using the reliable API
+    const qrcodeImg = document.getElementById('qrcode');
+    if (qrcodeImg) {
+      qrcodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playerJoinUrl)}`;
     }
 
     showScreen('lobby');
