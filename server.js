@@ -59,6 +59,7 @@ function generateRoomCode() {
 
 // In-memory active session timers to handle countdowns safely
 const activeTimers = {};
+const activeTurns = {};
 
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
@@ -80,6 +81,7 @@ io.on('connection', (socket) => {
         await addPlayer(roomCode + '-blue', roomCode, 'الفريق الأزرق', '#1e90ff');
         await addPlayer(roomCode + '-green', roomCode, 'الفريق الأخضر', '#2ed573');
         await addPlayer(roomCode + '-yellow', roomCode, 'الفريق الأصفر', '#ffa502');
+        activeTurns[roomCode] = 0; // Starts with Red Team (index 0)
       }
 
       socket.emit('room-created', room);
@@ -118,11 +120,13 @@ io.on('connection', (socket) => {
 
       const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
+      socket.emit('turn-updated', activeTurns[cleanRoomCode] !== undefined ? activeTurns[cleanRoomCode] : 0);
     } 
     else if (role === 'presenter') {
       socket.emit('presenter-joined', { room });
       const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
+      socket.emit('turn-updated', activeTurns[cleanRoomCode] !== undefined ? activeTurns[cleanRoomCode] : 0);
       
       // If there is an active question, sync it
       if (room.current_question_id && room.question_status !== 'idle') {
@@ -196,59 +200,11 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('game-started');
   });
 
-  // 4. Send/Show Question (Admin)
+  // 4. Send/Show Question (Admin / Presenter)
   socket.on('show-question', async ({ questionId }) => {
     const roomCode = socket.roomId;
-    if (!roomCode || socket.role !== 'admin') return;
-
-    const room = await getRoom(roomCode);
-    const question = await getQuestion(questionId);
-    if (!room || !question) return;
-
-    // Clear previous timers if any
-    if (activeTimers[roomCode]) {
-      clearTimeout(activeTimers[roomCode]);
-    }
-
-    // Broadcast preparation countdown (5 seconds) to room
-    const prepSeconds = 5;
-    io.to(roomCode).emit('prepare-question', { seconds: prepSeconds });
-    console.log(`Starting 5s question prep countdown for room ${roomCode}`);
-
-    // Set timeout for 5 seconds before showing the actual question
-    activeTimers[roomCode] = setTimeout(async () => {
-      // Re-fetch room in case state changed
-      const freshRoom = await getRoom(roomCode);
-      if (!freshRoom || freshRoom.status === 'finished') return;
-
-      await updateRoomQuestion(roomCode, questionId, 'showing');
-
-      // Clean options for players (hide correct answer)
-      const playerQuestion = {
-        id: question.id,
-        question_text: question.question_text,
-        option1: question.option1,
-        option2: question.option2,
-        option3: question.option3,
-        option4: question.option4,
-        category: question.category,
-        difficulty: question.difficulty
-      };
-
-      // Broadcast question to all in the room
-      io.to(roomCode).emit('question-shown', {
-        question: playerQuestion,
-        timerDuration: freshRoom.timer_duration
-      });
-
-      // Set server-side fallback timer to mark time-up automatically
-      activeTimers[roomCode] = setTimeout(async () => {
-        await updateRoomQuestionStatus(roomCode, 'time_up');
-        io.to(roomCode).emit('timer-expired');
-        console.log(`Timer expired for room ${roomCode}`);
-      }, freshRoom.timer_duration * 1000);
-      
-    }, prepSeconds * 1000);
+    if (!roomCode) return;
+    await performShowQuestion(roomCode, questionId);
   });
 
   // 5. Submit Answer (Player)
@@ -437,6 +393,131 @@ io.on('connection', (socket) => {
       console.error(err);
     }
   });
+
+  // 11. Group Mode: Set Active Turn (Admin / Presenter)
+  socket.on('group-set-turn', async ({ turnIndex }) => {
+    const roomCode = socket.roomId;
+    if (!roomCode) return;
+    activeTurns[roomCode] = parseInt(turnIndex);
+    io.to(roomCode).emit('turn-updated', activeTurns[roomCode]);
+    console.log(`Active turn updated to index ${turnIndex} for room ${roomCode}`);
+  });
+
+  // 12. Group Mode: Answer Result (Admin / Presenter)
+  socket.on('group-answer-result', async ({ isCorrect }) => {
+    const roomCode = socket.roomId;
+    if (!roomCode) return;
+    const room = await getRoom(roomCode);
+    if (!room || !room.current_question_id) return;
+
+    const players = await getPlayers(roomCode);
+    const turnIndex = activeTurns[roomCode] !== undefined ? activeTurns[roomCode] : 0;
+    const activePlayer = players[turnIndex];
+
+    if (isCorrect && activePlayer) {
+      await updatePlayerScore(activePlayer.id, 100); // Standard 100 points for correct group answer
+      console.log(`Awarded 100 pts to team "${activePlayer.name}"`);
+    }
+
+    const question = await getQuestion(room.current_question_id);
+    await updateRoomQuestionStatus(roomCode, 'revealed');
+
+    // Advance turn to next team
+    if (players.length > 0) {
+      activeTurns[roomCode] = (turnIndex + 1) % players.length;
+    }
+
+    // Broadcast updates
+    const updatedPlayers = await getPlayers(roomCode);
+    io.to(roomCode).emit('player-list-update', updatedPlayers);
+    io.to(roomCode).emit('turn-updated', activeTurns[roomCode]);
+
+    io.to(roomCode).emit('presenter-reveal', {
+      correctOption: question.correct_option,
+      correctText: question[`option${question.correct_option}`],
+      players: updatedPlayers,
+      answersSummary: {
+        total: 0,
+        correct: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0 }
+      }
+    });
+  });
+
+  // 13. Group Mode: Trigger Next Question Autoplay (Admin / Presenter)
+  socket.on('group-next-question', async () => {
+    const roomCode = socket.roomId;
+    if (!roomCode) return;
+    const room = await getRoom(roomCode);
+    if (!room) return;
+
+    const questions = await getQuestions();
+    if (questions.length === 0) return;
+
+    let nextQIndex = 0;
+    if (room.current_question_id) {
+      const currentIdx = questions.findIndex(q => q.id === room.current_question_id);
+      nextQIndex = (currentIdx + 1) % questions.length;
+    }
+
+    const nextQ = questions[nextQIndex];
+    if (nextQ) {
+      console.log(`Autoplay: throwing next question ID ${nextQ.id} for room ${roomCode}`);
+      await performShowQuestion(roomCode, nextQ.id);
+    }
+  });
+
+  // Helper function to throw question
+  async function performShowQuestion(roomCode, questionId) {
+    const room = await getRoom(roomCode);
+    const question = await getQuestion(questionId);
+    if (!room || !question) return;
+
+    // Clear previous timers if any
+    if (activeTimers[roomCode]) {
+      clearTimeout(activeTimers[roomCode]);
+    }
+
+    // Broadcast preparation countdown (5 seconds) to room
+    const prepSeconds = 5;
+    io.to(roomCode).emit('prepare-question', { seconds: prepSeconds });
+    console.log(`Starting 5s question prep countdown for room ${roomCode}`);
+
+    // Set timeout for 5 seconds before showing the actual question
+    activeTimers[roomCode] = setTimeout(async () => {
+      // Re-fetch room in case state changed
+      const freshRoom = await getRoom(roomCode);
+      if (!freshRoom || freshRoom.status === 'finished') return;
+
+      await updateRoomQuestion(roomCode, questionId, 'showing');
+
+      // Clean options for players (hide correct answer)
+      const playerQuestion = {
+        id: question.id,
+        question_text: question.question_text,
+        option1: question.option1,
+        option2: question.option2,
+        option3: question.option3,
+        option4: question.option4,
+        category: question.category,
+        difficulty: question.difficulty
+      };
+
+      // Broadcast question to all in the room
+      io.to(roomCode).emit('question-shown', {
+        question: playerQuestion,
+        timerDuration: freshRoom.timer_duration
+      });
+
+      // Set server-side fallback timer to mark time-up automatically
+      activeTimers[roomCode] = setTimeout(async () => {
+        await updateRoomQuestionStatus(roomCode, 'time_up');
+        io.to(roomCode).emit('timer-expired');
+        console.log(`Timer expired for room ${roomCode}`);
+      }, freshRoom.timer_duration * 1000);
+      
+    }, prepSeconds * 1000);
+  }
 
   // Disconnection handler
   socket.on('disconnect', async () => {

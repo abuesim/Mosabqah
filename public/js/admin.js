@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStartGame = document.getElementById('btn-start-game');
   const btnEndGame = document.getElementById('btn-end-game');
   const linkTvPresenter = document.getElementById('link-tv-presenter');
+  const linkTvPresenterControl = document.getElementById('link-tv-presenter-control');
 
   const activeQuestionNone = document.getElementById('active-question-none');
   const activeQuestionDetails = document.getElementById('active-question-details');
@@ -222,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dashboardRoomType.textContent = room.type === 'individual' ? 'لعب فردي' : 'لعب جماعي';
     dashboardRoomStatus.textContent = 'بانتظار البدء';
     linkTvPresenter.href = `presenter.html?room=${room.id}`;
+    linkTvPresenterControl.href = `presenter.html?room=${room.id}&control=true`;
     
     showScreen('dashboard');
   });

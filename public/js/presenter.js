@@ -49,9 +49,29 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const fullFinishedStandings = document.getElementById('full-finished-standings');
 
+  // State variables
+  let roomType = 'individual';
+  let playersList = [];
+  let currentTurnIndex = 0;
+
+  // Group turn indicator elements
+  const presenterTurnIndicator = document.getElementById('presenter-turn-indicator');
+  const presenterActiveTeamName = document.getElementById('presenter-active-team-name');
+  
+  // Floating controls elements
+  const presenterControlsBar = document.getElementById('presenter-controls-bar');
+  const ctrlStartGame = document.getElementById('ctrl-start-game');
+  const ctrlNextQ = document.getElementById('ctrl-next-q');
+  const ctrlReveal = document.getElementById('ctrl-reveal');
+  const ctrlGroupControls = document.getElementById('ctrl-group-controls');
+  const ctrlActiveTeamName = document.getElementById('ctrl-active-team-name');
+  const ctrlAnswerCorrect = document.getElementById('ctrl-answer-correct');
+  const ctrlAnswerIncorrect = document.getElementById('ctrl-answer-incorrect');
+
   // Parse Room ID from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
   let roomCode = urlParams.get('room');
+  const enableControl = urlParams.get('control') === 'true';
 
   // If no room code, prompt user
   if (!roomCode) {
@@ -65,6 +85,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   roomCode = roomCode.trim();
+
+  // If control mode is enabled, show the floating controls bar and bind events
+  if (enableControl && presenterControlsBar) {
+    presenterControlsBar.style.display = 'flex';
+    ctrlStartGame.addEventListener('click', () => {
+      socket.emit('start-game');
+    });
+    ctrlNextQ.addEventListener('click', () => {
+      socket.emit('group-next-question');
+    });
+    ctrlReveal.addEventListener('click', () => {
+      socket.emit('reveal-answer');
+    });
+    ctrlAnswerCorrect.addEventListener('click', () => {
+      socket.emit('group-answer-result', { isCorrect: true });
+    });
+    ctrlAnswerIncorrect.addEventListener('click', () => {
+      socket.emit('group-answer-result', { isCorrect: false });
+    });
+  }
 
   // Initialize Sound Manager on first interaction
   document.body.addEventListener('click', () => {
@@ -98,13 +138,39 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('presenter-joined', ({ room }) => {
     currentRoomId = room.id;
     roomCodeDisplay.textContent = room.id;
+    roomType = room.type;
+
+    if (roomType === 'group') {
+      const qrcodeInstructions = document.getElementById('qrcode-instructions');
+      if (qrcodeInstructions) {
+        qrcodeInstructions.style.display = 'none';
+      }
+      if (ctrlGroupControls) {
+        ctrlGroupControls.style.display = 'flex';
+      }
+    } else {
+      if (ctrlGroupControls) {
+        ctrlGroupControls.style.display = 'none';
+      }
+    }
+
+    // Toggle start vs play control buttons based on active room status
+    if (room.status === 'active' || room.status === 'waiting') {
+      if (ctrlStartGame) ctrlStartGame.style.display = 'none';
+      if (ctrlNextQ) ctrlNextQ.style.display = 'inline-block';
+      if (ctrlReveal) ctrlReveal.style.display = 'inline-block';
+    } else {
+      if (ctrlStartGame) ctrlStartGame.style.display = 'inline-block';
+      if (ctrlNextQ) ctrlNextQ.style.display = 'none';
+      if (ctrlReveal) ctrlReveal.style.display = 'none';
+    }
 
     // Build URL for players to join
     const playerJoinUrl = `${window.location.origin}/player.html?room=${room.id}`;
     
     // Generate QR Code using the reliable API
     const qrcodeImg = document.getElementById('qrcode');
-    if (qrcodeImg) {
+    if (qrcodeImg && roomType !== 'group') {
       qrcodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playerJoinUrl)}`;
     }
 
@@ -183,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Update Player List
   socket.on('player-list-update', (players) => {
+    playersList = players;
     playersCount.textContent = players.length;
     playersContainer.innerHTML = '';
 
@@ -217,10 +284,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
       playersContainer.appendChild(badge);
     });
+
+    updateTurnDisplay();
   });
+
+  // Socket: Update Active Turn
+  socket.on('turn-updated', (turnIndex) => {
+    currentTurnIndex = turnIndex;
+    updateTurnDisplay();
+  });
+
+  // Helper: Update turn display in both Presenter View and Control Bar
+  function updateTurnDisplay() {
+    if (roomType === 'group' && playersList.length > 0) {
+      const activeTeam = playersList[currentTurnIndex];
+      if (activeTeam) {
+        presenterActiveTeamName.textContent = activeTeam.name;
+        presenterActiveTeamName.style.color = activeTeam.color;
+        presenterTurnIndicator.style.display = 'block';
+
+        if (ctrlActiveTeamName) {
+          ctrlActiveTeamName.textContent = activeTeam.name;
+          ctrlActiveTeamName.style.color = activeTeam.color;
+        }
+      }
+    } else {
+      if (presenterTurnIndicator) {
+        presenterTurnIndicator.style.display = 'none';
+      }
+    }
+  }
 
   // Socket: Game Started
   socket.on('game-started', () => {
+    // Hide start game button and show next/reveal controls
+    if (ctrlStartGame) ctrlStartGame.style.display = 'none';
+    if (ctrlNextQ) ctrlNextQ.style.display = 'inline-block';
+    if (ctrlReveal) ctrlReveal.style.display = 'inline-block';
+
     // Show empty question screen or wait screen
     qText.textContent = 'بانتظار طرح السؤال الأول من المقدم...';
     Object.keys(qOptions).forEach(k => {
