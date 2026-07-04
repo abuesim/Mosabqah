@@ -11,8 +11,6 @@ RUN npm install --omit=dev
 # Copy database initialization and logic
 COPY database.js ./
 COPY server.js ./
-COPY .env ./
-
 # Copy public static files
 COPY public/ ./public/
 
