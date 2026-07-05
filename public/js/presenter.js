@@ -300,7 +300,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const activeTeam = playersList[currentTurnIndex];
       if (activeTeam) {
         presenterActiveTeamName.textContent = activeTeam.name;
-        presenterActiveTeamName.style.color = activeTeam.color;
+        
+        // Full color blend for the entire row!
+        presenterTurnIndicator.style.backgroundColor = `${activeTeam.color}35`; // Hex color + 35 (approx 20% opacity)
+        presenterTurnIndicator.style.borderColor = activeTeam.color;
+        presenterTurnIndicator.style.color = '#ffffff';
+        presenterTurnIndicator.style.textShadow = `0 0 10px ${activeTeam.color}, 0 0 20px ${activeTeam.color}`;
+        presenterTurnIndicator.style.boxShadow = `0 0 20px ${activeTeam.color}40, inset 0 0 15px ${activeTeam.color}20`;
         presenterTurnIndicator.style.display = 'block';
 
         if (ctrlActiveTeamName) {
