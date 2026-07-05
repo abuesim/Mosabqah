@@ -412,23 +412,28 @@ io.on('connection', (socket) => {
     console.log(`Active turn updated to index ${turnIndex} for room ${roomCode}`);
   });
 
-  // 12. Group Mode: Answer Result (Admin / Presenter)
-  socket.on('group-answer-result', async ({ isCorrect }) => {
+  // 12. Group Mode: Choose Option (Presenter Control Screen)
+  socket.on('group-choose-option', async ({ chosenOption }) => {
     const roomCode = socket.roomId;
     if (!roomCode) return;
     const room = await getRoom(roomCode);
     if (!room || !room.current_question_id) return;
 
+    const question = await getQuestion(room.current_question_id);
+    if (!question) return;
+
+    const isCorrect = (question.correct_option === parseInt(chosenOption));
     const players = await getPlayers(roomCode);
     const turnIndex = activeTurns[roomCode] !== undefined ? activeTurns[roomCode] : 0;
     const activePlayer = players[turnIndex];
 
     if (isCorrect && activePlayer) {
       await updatePlayerScore(activePlayer.id, 100); // Standard 100 points for correct group answer
-      console.log(`Awarded 100 pts to team "${activePlayer.name}"`);
+      console.log(`Option ${chosenOption} is CORRECT. Awarded 100 pts to team "${activePlayer.name}"`);
+    } else {
+      console.log(`Option ${chosenOption} is INCORRECT. Correct option is ${question.correct_option}`);
     }
 
-    const question = await getQuestion(room.current_question_id);
     await updateRoomQuestionStatus(roomCode, 'revealed');
 
     // Advance turn to next team

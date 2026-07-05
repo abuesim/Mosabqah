@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let roomType = 'individual';
   let playersList = [];
   let currentTurnIndex = 0;
+  let currentQuestionStatus = 'idle';
 
   // Group turn indicator elements
   const presenterTurnIndicator = document.getElementById('presenter-turn-indicator');
@@ -65,8 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const ctrlReveal = document.getElementById('ctrl-reveal');
   const ctrlGroupControls = document.getElementById('ctrl-group-controls');
   const ctrlActiveTeamName = document.getElementById('ctrl-active-team-name');
-  const ctrlAnswerCorrect = document.getElementById('ctrl-answer-correct');
-  const ctrlAnswerIncorrect = document.getElementById('ctrl-answer-incorrect');
 
   // Parse Room ID from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -98,11 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
     ctrlReveal.addEventListener('click', () => {
       socket.emit('reveal-answer');
     });
-    ctrlAnswerCorrect.addEventListener('click', () => {
-      socket.emit('group-answer-result', { isCorrect: true });
-    });
-    ctrlAnswerIncorrect.addEventListener('click', () => {
-      socket.emit('group-answer-result', { isCorrect: false });
+
+    // Make option cards clickable in presenter controls mode
+    Object.keys(qOptions).forEach(k => {
+      qOptions[k].style.cursor = 'pointer';
+      qOptions[k].addEventListener('click', () => {
+        if (currentQuestionStatus === 'showing') {
+          socket.emit('group-choose-option', { chosenOption: parseInt(k) });
+        }
+      });
     });
   }
 
@@ -198,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Sync existing questions (in case of reloads)
   socket.on('sync-question', ({ question, questionStatus, answeredCount: ansCount, timerDuration, startTime }) => {
+    currentQuestionStatus = questionStatus;
     if (questionStatus === 'showing') {
       // Transition to showing
       qCategory.textContent = question.category === 'islamic' ? 'إسلامي' : 
@@ -340,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Question shown on TV
   socket.on('question-shown', ({ question, timerDuration }) => {
+    currentQuestionStatus = 'showing';
     qCategory.textContent = question.category === 'islamic' ? 'إسلامي' : 
                              question.category === 'riddles' ? 'لغز' : 
                              question.category === 'science' ? 'علوم' : 'عام';
@@ -393,6 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Timer expired
   socket.on('timer-expired', () => {
+    currentQuestionStatus = 'revealed';
     clearInterval(countdownInterval);
     qTimerText.textContent = 'انتهى الوقت!';
     sounds.playIncorrect(); // Play buzzer tone
@@ -400,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Answer revealed (TV layout update)
   socket.on('presenter-reveal', ({ correctOption, correctText, players, answersSummary }) => {
+    currentQuestionStatus = 'revealed';
     clearInterval(countdownInterval);
 
     // 1. Populate Result statistics
