@@ -272,20 +272,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  const TEAM_COLOR_NAMES = {
+    '#ff4757': 'الأحمر',
+    '#1e90ff': 'الأزرق',
+    '#2ed573': 'الأخضر',
+    '#ffa502': 'الأصفر',
+    '#a55eea': 'البنفسجي'
+  };
+
   function renderPlayerScoreboardOverlay() {
+    renderPlayerScoreboardTeams();
+
     if (!playerScoreboardList) return;
     playerScoreboardList.innerHTML = '';
     const sorted = [...allPlayers].sort((a, b) => (b.score || 0) - (a.score || 0));
     sorted.forEach((p, idx) => {
       const item = document.createElement('div');
       item.className = 'leaderboard-item';
-      
+
       let rankClass = '';
       if (idx === 0) rankClass = 'rank-1';
       else if (idx === 1) rankClass = 'rank-2';
       else if (idx === 2) rankClass = 'rank-3';
 
       const isSelf = playerDetails && p.id === playerDetails.id;
+      const teamColor = p.team_id || p.color;
+
+      // Color the whole card with the player's team color
+      item.style.background = `${teamColor}22`;
+      item.style.border = `1px solid ${teamColor}88`;
+      item.style.boxShadow = `0 0 12px ${teamColor}30`;
 
       item.innerHTML = `
         <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
@@ -296,6 +312,50 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="player-score">${p.score} نقطة</span>
       `;
       playerScoreboardList.appendChild(item);
+    });
+  }
+
+  function renderPlayerScoreboardTeams() {
+    const panel = document.getElementById('player-scoreboard-teams-panel');
+    const list = document.getElementById('player-scoreboard-teams-list');
+    if (!panel || !list) return;
+
+    const map = new Map();
+    allPlayers.forEach(p => {
+      const tid = (p.team_id || p.color || '').toLowerCase();
+      const entry = map.get(tid) || { color: p.team_id || p.color, total: 0, count: 0 };
+      entry.total += (p.score || 0);
+      entry.count += 1;
+      map.set(tid, entry);
+    });
+    const teams = [...map.values()].sort((a, b) => b.total - a.total);
+
+    if (teams.length < 2) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = 'block';
+    list.innerHTML = '';
+    teams.forEach((t, idx) => {
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      const name = TEAM_COLOR_NAMES[(t.color || '').toLowerCase()] || t.color;
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 14px; border-radius: var(--radius-sm);
+        background: ${t.color}22; border: 1px solid ${t.color}88;
+        box-shadow: 0 0 12px ${t.color}30;
+      `;
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 16px; font-weight: 800;">${rankBadge}</span>
+          <span style="width: 12px; height: 12px; border-radius: 50%; background: ${t.color}; box-shadow: 0 0 8px ${t.color};"></span>
+          <span style="font-weight: 800; color: ${t.color};">فريق ${name}</span>
+          <span style="font-size: 11px; color: var(--text-secondary);">(${t.count} لاعب)</span>
+        </div>
+        <span style="font-size: 18px; font-weight: 900; color: var(--color-yellow);">${t.total} نقطة</span>
+      `;
+      list.appendChild(row);
     });
   }
 

@@ -205,10 +205,16 @@
       <div style="font-size: 50px; text-align: center; margin-bottom: 15px;">📊</div>
       <h2 class="title-gradient" style="text-align: center; margin-bottom: 25px; font-size: 26px;">الترتيب الحالي للمتسابقين</h2>
       
+      <!-- Team totals (aggregated by color) - shown only when 2+ distinct teams exist -->
+      <div id="player-scoreboard-teams-panel" style="display: none; margin-bottom: 25px;">
+        <h3 style="font-size: 16px; margin-bottom: 10px; color: var(--color-yellow);">🏳️ ترتيب الفرق</h3>
+        <div id="player-scoreboard-teams-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+
       <div id="player-scoreboard-list" class="leaderboard-list" style="margin-bottom: 30px;">
         <!-- Dynamically rendered list of players ranking -->
       </div>
-      
+
       <div style="text-align: center; color: var(--text-secondary); font-size: 13px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
         بانتظار المقدم لإخفاء الترتيب أو طرح السؤال التالي... ⏳
       </div>
