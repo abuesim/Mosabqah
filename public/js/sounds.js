@@ -5,6 +5,7 @@ class SoundManager {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.heartbeatTimer = null;
   }
 
   init() {
@@ -93,6 +94,54 @@ class SoundManager {
         this.playTone(freq, 0.08, 0.2, 'triangle');
       }, idx * 100);
     });
+  }
+
+  // Heartbeat: two low thumps ("lub-dub") - creates suspenseful pulse feeling
+  playHeartbeat() {
+    if (this.muted) return;
+    this.init();
+    const now = this.ctx.currentTime;
+
+    // First thump ("lub") — deeper, louder
+    this.playThump(now, 55, 0.18, 0.16);
+    // Second thump ("dub") — slightly higher, softer, right after
+    this.playThump(now + 0.18, 75, 0.12, 0.14);
+  }
+
+  playThump(startTime, freq, volume, duration) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * 1.6, startTime);
+    osc.frequency.exponentialRampToValueAtTime(freq, startTime + 0.04);
+
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+  }
+
+  // Start a repeating heartbeat loop while the question is displayed
+  startHeartbeat(intervalMs = 900) {
+    this.stopHeartbeat();
+    if (this.muted) return;
+    this.playHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.playHeartbeat();
+    }, intervalMs);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   playTone(freq, volume, duration, type = 'sine') {

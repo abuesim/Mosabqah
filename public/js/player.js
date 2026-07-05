@@ -60,7 +60,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const urlRoomCode = urlParams.get('room');
   if (urlRoomCode) {
     roomCodeInput.value = urlRoomCode;
+    // Hide the room-code input entirely (came via QR / shared link) and show a compact chip
+    const roomCodeGroup = document.getElementById('room-code-group');
+    const roomCodeChip = document.getElementById('room-code-chip');
+    const roomCodeChipValue = document.getElementById('room-code-chip-value');
+    if (roomCodeGroup) roomCodeGroup.style.display = 'none';
+    if (roomCodeChip) roomCodeChip.style.display = 'block';
+    if (roomCodeChipValue) roomCodeChipValue.textContent = urlRoomCode;
+    // Focus name input immediately so the player just types their name and joins
+    setTimeout(() => playerNameInput.focus(), 100);
   }
+
+  // Pressing Enter in the name field submits (fast QR join flow)
+  playerNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      btnJoin.click();
+    }
+  });
 
 
   // Initialize Sound Manager on first interaction
@@ -216,25 +233,28 @@ document.addEventListener('DOMContentLoaded', () => {
     timerText.textContent = secondsLeft;
     timerBar.style.width = '100%';
     timerBar.style.transition = 'none';
-    
+
     // Force browser reflow to reset transition
     timerBar.getBoundingClientRect();
-    
+
     timerBar.style.transition = `width ${timerDuration}s linear`;
     timerBar.style.width = '0%';
-    
+
     clearInterval(countdownInterval);
+    // Start heartbeat (accelerates in the last 5 seconds for tension)
+    sounds.startHeartbeat(900);
     countdownInterval = setInterval(() => {
       secondsLeft--;
       timerText.textContent = secondsLeft;
-      
-      // Play soft tick sound during last 5 seconds
-      if (secondsLeft <= 5 && secondsLeft > 0) {
-        sounds.playTick();
+
+      // Speed up the heartbeat in the final 5 seconds
+      if (secondsLeft === 5) {
+        sounds.startHeartbeat(450);
       }
 
       if (secondsLeft <= 0) {
         clearInterval(countdownInterval);
+        sounds.stopHeartbeat();
       }
     }, 1000);
 
@@ -258,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Stop countdown ticking locally
       clearInterval(countdownInterval);
+      sounds.stopHeartbeat();
 
       // Emit
       socket.emit('submit-answer', {
@@ -267,20 +288,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const correctAnswerBox = document.getElementById('correct-answer-box');
+  const correctAnswerText = document.getElementById('correct-answer-text');
+
   // Socket: Answer submitted ack
   socket.on('answer-submitted-ack', ({ isCorrect, chosenOption }) => {
+    sounds.stopHeartbeat();
     feedbackIcon.textContent = '⏳';
     feedbackTitle.textContent = 'تم تسجيل الإجابة!';
     feedbackDesc.textContent = 'بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...';
     scoreEarnedPanel.style.display = 'none';
+    if (correctAnswerBox) correctAnswerBox.style.display = 'none';
     feedbackTotalScore.textContent = activeScore;
-    
+
     showScreen('feedback');
   });
 
   // Socket: Timer expired
   socket.on('timer-expired', () => {
     clearInterval(countdownInterval);
+    sounds.stopHeartbeat();
     // If player didn't answer yet, lock options
     if (screens.question.classList.contains('active')) {
       optionButtons.forEach(b => b.disabled = true);
@@ -288,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
       feedbackTitle.textContent = 'انتهى الوقت!';
       feedbackDesc.textContent = 'بانتظار المقدم لكشف النتيجة...';
       scoreEarnedPanel.style.display = 'none';
+      if (correctAnswerBox) correctAnswerBox.style.display = 'none';
       feedbackTotalScore.textContent = activeScore;
       showScreen('feedback');
     }
@@ -297,41 +325,46 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('answer-revealed', ({ correctOption, correctText, isCorrect, chosenOption, pointsEarned, totalScore }) => {
     activeScore = totalScore;
     feedbackTotalScore.textContent = totalScore;
-    
+    sounds.stopHeartbeat();
+
     if (isCorrect) {
       feedbackIcon.textContent = '✅';
       feedbackTitle.textContent = 'إجابة صحيحة!';
       feedbackTitle.style.color = 'var(--color-green)';
-      feedbackDesc.innerHTML = `الإجابة هي بالفعل: <strong>${correctText}</strong>`;
-      
+      feedbackDesc.textContent = 'أحسنت! إجابتك صحيحة.';
+
+      // Show correct-answer box (green) with the confirmed answer
+      if (correctAnswerBox && correctAnswerText) {
+        correctAnswerText.textContent = correctText;
+        correctAnswerBox.style.display = 'block';
+      }
+
       scoreEarnedPanel.style.display = 'block';
       feedbackPoints.textContent = `+${pointsEarned}`;
       feedbackPoints.style.color = 'var(--color-green)';
-      
+
       sounds.playCorrect();
-      // Device vibration API for physical feedback
-      if (navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } else {
       feedbackIcon.textContent = '❌';
       feedbackTitle.textContent = 'إجابة خاطئة!';
       feedbackTitle.style.color = 'var(--color-red)';
-      
-      if (chosenOption) {
-        feedbackDesc.innerHTML = `لقد اخترت إجابة خاطئة.<br>الإجابة الصحيحة هي: <strong>${correctText}</strong>`;
-      } else {
-        feedbackDesc.innerHTML = `فاتك الوقت للأسف!<br>الإجابة الصحيحة هي: <strong>${correctText}</strong>`;
+      feedbackDesc.textContent = chosenOption
+        ? 'لقد اخترت إجابة خاطئة.'
+        : 'فاتك الوقت للأسف!';
+
+      // Show correct-answer box (green) with the right answer
+      if (correctAnswerBox && correctAnswerText) {
+        correctAnswerText.textContent = correctText;
+        correctAnswerBox.style.display = 'block';
       }
-      
+
       scoreEarnedPanel.style.display = 'none';
-      
+
       sounds.playIncorrect();
-      if (navigator.vibrate) {
-        navigator.vibrate(300);
-      }
+      if (navigator.vibrate) navigator.vibrate(300);
     }
-    
+
     showScreen('feedback');
   });
 

@@ -30,9 +30,15 @@
       <div class="glass-panel">
         <h2 style="text-align: center; margin-bottom: 24px;" class="title-gradient">انضمام للمسابقة</h2>
         
-        <div class="form-group">
+        <div class="form-group" id="room-code-group">
           <label class="form-label" for="room-code">رمز الغرفة (4 أرقام)</label>
           <input type="number" id="room-code" class="form-input" placeholder="مثال: 1234" pattern="[0-9]*" inputmode="numeric" required>
+        </div>
+
+        <!-- Compact room-code chip shown when arrived via QR/link (room code prefilled) -->
+        <div id="room-code-chip" style="display: none; text-align: center; margin-bottom: 20px; padding: 12px; border-radius: var(--radius-md); background: rgba(46, 213, 115, 0.08); border: 1px solid rgba(46, 213, 115, 0.25);">
+          <div style="font-size: 12px; color: var(--text-secondary);">تم اكتشاف رمز الغرفة تلقائياً ✅</div>
+          <div id="room-code-chip-value" style="font-size: 26px; font-weight: 900; color: var(--color-green); letter-spacing: 4px; margin-top: 2px;">----</div>
         </div>
 
         <div class="form-group">
@@ -121,18 +127,29 @@
 
     <!-- SCREEN 4: ANSWER FEEDBACK / WAIT -->
     <section id="screen-feedback" class="screen">
-      <div class="glass-panel text-center" style="text-align: center; padding: 50px 20px;">
-        <div id="feedback-icon" style="font-size: 70px; margin-bottom: 20px;">⏳</div>
-        <h2 id="feedback-title" class="title-gradient" style="margin-bottom: 16px;">تم تسجيل الإجابة!</h2>
-        <p id="feedback-desc" style="color: var(--text-secondary); margin-bottom: 30px;">بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...</p>
-        
+      <div class="glass-panel text-center" style="text-align: center; padding: 40px 20px;">
+        <div id="feedback-icon" style="font-size: 70px; margin-bottom: 16px;">⏳</div>
+        <h2 id="feedback-title" class="title-gradient" style="margin-bottom: 12px;">تم تسجيل الإجابة!</h2>
+        <p id="feedback-desc" style="color: var(--text-secondary); margin-bottom: 20px;">بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...</p>
+
+        <!-- Correct-answer highlighted box (shown on both wrong and time-up outcomes) -->
+        <div id="correct-answer-box" style="display: none; background: rgba(46, 213, 115, 0.12); border: 2px solid rgba(46, 213, 115, 0.5); padding: 18px; border-radius: var(--radius-md); max-width: 320px; margin: 0 auto 22px; box-shadow: 0 0 20px rgba(46, 213, 115, 0.15);">
+          <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">الإجابة الصحيحة هي:</div>
+          <div id="correct-answer-text" style="font-size: 22px; font-weight: 800; color: var(--color-green); line-height: 1.4;">—</div>
+        </div>
+
         <div id="score-earned-panel" style="display: none; background: rgba(46, 213, 115, 0.1); border: 1px solid rgba(46, 213, 115, 0.2); padding: 15px; border-radius: var(--radius-md); max-width: 250px; margin: 0 auto 20px;">
           <div style="font-size: 14px; color: var(--text-secondary);">النقاط المكتسبة:</div>
           <div id="feedback-points" style="font-size: 24px; font-weight: 800; color: var(--color-green);">+120</div>
         </div>
 
-        <div style="font-size: 16px; font-weight: bold; color: var(--text-primary);">
-          مجموع نقاطك الحالي: <span id="feedback-total-score" style="color: var(--primary-accent);">0</span>
+        <!-- Big current-score card -->
+        <div style="background: linear-gradient(135deg, rgba(255, 165, 0, 0.15), rgba(255, 215, 0, 0.05)); border: 1px solid rgba(255, 165, 0, 0.35); padding: 18px 20px; border-radius: var(--radius-md); max-width: 320px; margin: 0 auto; box-shadow: 0 0 20px rgba(255, 165, 0, 0.12);">
+          <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">مجموع نقاطك الحالي</div>
+          <div style="font-size: 44px; font-weight: 900; color: var(--color-yellow); line-height: 1; text-shadow: 0 0 12px rgba(255, 165, 0, 0.35);">
+            <span id="feedback-total-score">0</span>
+            <span style="font-size: 16px; color: var(--text-secondary); font-weight: 700;">نقطة ⭐</span>
+          </div>
         </div>
       </div>
     </section>
