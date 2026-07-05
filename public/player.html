@@ -199,6 +199,22 @@
 
   </div>
 
+  <!-- Scoreboard Overlay Modal -->
+  <div id="player-scoreboard-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10, 10, 18, 0.96); backdrop-filter: blur(20px); z-index: 2000; padding: 25px; overflow-y: auto; text-align: right; direction: rtl;">
+    <div style="max-width: 500px; margin: 0 auto; padding-top: 20px;">
+      <div style="font-size: 50px; text-align: center; margin-bottom: 15px;">📊</div>
+      <h2 class="title-gradient" style="text-align: center; margin-bottom: 25px; font-size: 26px;">الترتيب الحالي للمتسابقين</h2>
+      
+      <div id="player-scoreboard-list" class="leaderboard-list" style="margin-bottom: 30px;">
+        <!-- Dynamically rendered list of players ranking -->
+      </div>
+      
+      <div style="text-align: center; color: var(--text-secondary); font-size: 13px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+        بانتظار المقدم لإخفاء الترتيب أو طرح السؤال التالي... ⏳
+      </div>
+    </div>
+  </div>
+
   <!-- SCRIPT -->
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="js/player.js"></script>

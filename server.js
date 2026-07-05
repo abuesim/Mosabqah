@@ -25,7 +25,8 @@ import {
   clearRoomData,
   addQuestion,
   deleteQuestion,
-  deleteAllQuestions
+  deleteAllQuestions,
+  updateRoomScoreboardVisibility
 } from './database.js';
 
 dotenv.config();
@@ -328,6 +329,16 @@ io.on('connection', (socket) => {
 
     await updateRoomStatus(roomCode, 'active');
     io.to(roomCode).emit('game-started');
+  });
+
+  // 3b. Toggle Scoreboard Visibility to players (Admin / Presenter)
+  socket.on('toggle-scoreboard', async ({ visible }) => {
+    const roomCode = socket.roomId;
+    if (!roomCode || (socket.role !== 'admin' && socket.role !== 'presenter')) return;
+
+    await updateRoomScoreboardVisibility(roomCode, visible);
+    const players = await getPlayers(roomCode);
+    io.to(roomCode).emit('scoreboard-visibility-update', { visible: !!visible, players });
   });
 
   // 4. Send/Show Question (Admin / Presenter)

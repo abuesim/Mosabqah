@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const joinStep1 = document.getElementById('join-step-1');
   const joinStep2 = document.getElementById('join-step-2');
   const btnCheckCode = document.getElementById('btn-check-code');
+  const playerScoreboardOverlay = document.getElementById('player-scoreboard-overlay');
+  const playerScoreboardList = document.getElementById('player-scoreboard-list');
+  let allPlayers = [];
   const btnBackToStep1 = document.getElementById('btn-back-to-step-1');
   const validatedRoomName = document.getElementById('validated-room-name');
   const validatedRoomCode = document.getElementById('validated-room-code');
@@ -233,12 +236,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Display player name in HUD navbar
     playerHudName.textContent = player.name;
     playerHudName.style.display = 'block';
+
+    if (room.show_scoreboard) {
+      playerScoreboardOverlay.style.display = 'block';
+    } else {
+      playerScoreboardOverlay.style.display = 'none';
+    }
     
     showScreen('lobby');
   });
 
   // Socket: Sync list update (useful for score synchronizations)
   socket.on('player-list-update', (players) => {
+    allPlayers = players;
     if (playerDetails) {
       const self = players.find(p => p.id === playerDetails.id);
       if (self) {
@@ -246,7 +256,48 @@ document.addEventListener('DOMContentLoaded', () => {
         playerScoreVal.textContent = activeScore;
       }
     }
+    // Update player scoreboard overlay in real time if visible
+    if (playerScoreboardOverlay && playerScoreboardOverlay.style.display === 'block') {
+      renderPlayerScoreboardOverlay();
+    }
   });
+
+  socket.on('scoreboard-visibility-update', ({ visible, players }) => {
+    if (players) allPlayers = players;
+    if (visible) {
+      playerScoreboardOverlay.style.display = 'block';
+      renderPlayerScoreboardOverlay();
+    } else {
+      playerScoreboardOverlay.style.display = 'none';
+    }
+  });
+
+  function renderPlayerScoreboardOverlay() {
+    if (!playerScoreboardList) return;
+    playerScoreboardList.innerHTML = '';
+    const sorted = [...allPlayers].sort((a, b) => (b.score || 0) - (a.score || 0));
+    sorted.forEach((p, idx) => {
+      const item = document.createElement('div');
+      item.className = 'leaderboard-item';
+      
+      let rankClass = '';
+      if (idx === 0) rankClass = 'rank-1';
+      else if (idx === 1) rankClass = 'rank-2';
+      else if (idx === 2) rankClass = 'rank-3';
+
+      const isSelf = playerDetails && p.id === playerDetails.id;
+
+      item.innerHTML = `
+        <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
+        <div class="player-info">
+          <div class="player-dot" style="color: ${p.color}; background-color: ${p.color}"></div>
+          <span class="player-name" style="${isSelf ? 'font-weight: bold; color: var(--color-yellow);' : ''}">${p.name} ${isSelf ? '⭐ (أنت)' : ''}</span>
+        </div>
+        <span class="player-score">${p.score} نقطة</span>
+      `;
+      playerScoreboardList.appendChild(item);
+    });
+  }
 
   // Socket: Question Preparation Countdown
   socket.on('prepare-question', ({ seconds }) => {

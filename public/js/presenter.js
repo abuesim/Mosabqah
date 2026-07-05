@@ -758,6 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Game Finished (TV Podium layout update)
+  // Socket: Game Finished (TV Podium layout update)
   socket.on('game-finished', ({ players }) => {
     // Top 3 players
     const p1 = players[0] || { name: 'لا يوجد', score: 0 };
@@ -782,7 +783,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('podium-3').style.color = p3.color;
     }
 
-    // Populate full standings
+    // Populate full standings (Individual General Standings)
     fullFinishedStandings.innerHTML = '';
     players.forEach((player, idx) => {
       const item = document.createElement('div');
@@ -803,6 +804,61 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       fullFinishedStandings.appendChild(item);
     });
+
+    // Populate Team Standings (Group Score totals by color)
+    const teamFinishedStandings = document.getElementById('team-finished-standings');
+    if (teamFinishedStandings) {
+      teamFinishedStandings.innerHTML = '';
+      
+      const teamStats = {};
+      players.forEach(p => {
+        const color = p.color || '#ffffff';
+        if (!teamStats[color]) {
+          teamStats[color] = {
+            color: color,
+            score: 0,
+            playerCount: 0
+          };
+        }
+        teamStats[color].score += (p.score || 0);
+        teamStats[color].playerCount += 1;
+      });
+
+      const colorNames = {
+        '#ff4757': 'الفريق الأحمر 🔴',
+        '#2ed573': 'الفريق الأخضر 🟢',
+        '#70a1ff': 'الفريق الأزرق 🔵',
+        '#ffa502': 'الفريق الأصفر 🟡',
+        'red': 'الفريق الأحمر 🔴',
+        'green': 'الفريق الأخضر 🟢',
+        'blue': 'الفريق الأزرق 🔵',
+        'yellow': 'الفريق الأصفر 🟡'
+      };
+
+      const sortedTeams = Object.values(teamStats).sort((a, b) => b.score - a.score);
+
+      sortedTeams.forEach((team, idx) => {
+        const item = document.createElement('div');
+        item.className = 'leaderboard-item';
+        
+        let rankClass = '';
+        if (idx === 0) rankClass = 'rank-1';
+        else if (idx === 1) rankClass = 'rank-2';
+        else if (idx === 2) rankClass = 'rank-3';
+
+        const teamName = colorNames[team.color.toLowerCase()] || `فريق ${team.color}`;
+
+        item.innerHTML = `
+          <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
+          <div class="player-info">
+            <div class="player-dot" style="color: ${team.color}; background-color: ${team.color}"></div>
+            <span class="player-name" style="font-weight: bold; color: ${team.color};">${teamName} <small style="font-size: 11px; opacity: 0.7; color: var(--text-secondary);">(${team.playerCount} لاعب)</small></span>
+          </div>
+          <span class="player-score" style="color: ${team.color}; font-weight: bold;">${team.score} نقطة</span>
+        `;
+        teamFinishedStandings.appendChild(item);
+      });
+    }
 
     sounds.playSuccess(); // Play victory fanfare
     showScreen('finished');

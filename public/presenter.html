@@ -14,7 +14,7 @@
     <header class="navbar" style="padding-bottom: 20px;">
       <div class="logo" style="font-size: 32px;">
         <span>🏆</span>
-        <span class="title-gradient">مُسَابَقَة عصومي <small style="font-size: 14px; opacity: 0.7;">الاصدار 2.1</small></span>
+        <span class="title-gradient">مُسَابَقَة عصومي <small style="font-size: 14px; opacity: 0.7;">الاصدار 2.2</small></span>
       </div>
       <div style="display: flex; align-items: center; gap: 14px;">
         <a href="index.html" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px;" title="الرجوع للرئيسية">🏠 الرئيسية</a>
@@ -298,11 +298,21 @@
           
         </div>
 
-        <!-- Full Standings Table below -->
-        <div class="glass-panel" style="max-width: 700px; margin: 0 auto; text-align: right;">
-          <h3 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 5px;">الجدول الكامل للنتائج</h3>
-          <div id="full-finished-standings" class="leaderboard-list">
-            <!-- Full Leaderboard -->
+        <!-- Final Achievements Layout -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 900px; margin: 20px auto 0 auto; text-align: right;">
+          <!-- Column 1: Individual achievements -->
+          <div class="glass-panel" style="margin: 0; padding: 20px;">
+            <h3 style="font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">🥇 الإنجاز الفردي (الترتيب العام)</h3>
+            <div id="full-finished-standings" class="leaderboard-list">
+              <!-- Full Leaderboard -->
+            </div>
+          </div>
+          <!-- Column 2: Team Achievements -->
+          <div class="glass-panel" style="margin: 0; padding: 20px;">
+            <h3 style="font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">👥 الإنجاز الجماعي (نقاط ألوان الفرق)</h3>
+            <div id="team-finished-standings" class="leaderboard-list">
+              <!-- Team Leaderboard aggregated -->
+            </div>
           </div>
         </div>
       </div>

@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const dashboardRoomStatus = document.getElementById('dashboard-room-status');
   const btnStartGame = document.getElementById('btn-start-game');
   const btnEndGame = document.getElementById('btn-end-game');
+  const btnToggleScoreboard = document.getElementById('btn-toggle-scoreboard');
+  let scoreboardVisible = false;
   const linkTvPresenter = document.getElementById('link-tv-presenter');
   const linkTvPresenterControl = document.getElementById('link-tv-presenter-control');
 
@@ -445,7 +447,37 @@ document.addEventListener('DOMContentLoaded', () => {
     currentRoom = room;
     dashboardRoomCode.textContent = room.id;
     dashboardRoomType.textContent = room.type === 'individual' ? 'لعب فردي' : 'لعب جماعي';
-    dashboardRoomStatus.textContent = 'بانتظار البدء';
+    
+    if (room.status === 'active') {
+      dashboardRoomStatus.textContent = 'المسابقة جارية 🎮';
+      btnStartGame.style.display = 'none';
+      btnEndGame.style.display = 'inline-flex';
+      if (btnToggleScoreboard) btnToggleScoreboard.style.display = 'inline-flex';
+    } else if (room.status === 'finished') {
+      dashboardRoomStatus.textContent = 'انتهت المسابقة 🏆';
+      btnStartGame.style.display = 'none';
+      btnEndGame.style.display = 'none';
+      if (btnToggleScoreboard) btnToggleScoreboard.style.display = 'none';
+    } else {
+      dashboardRoomStatus.textContent = 'بانتظار البدء';
+      btnStartGame.style.display = 'inline-flex';
+      btnEndGame.style.display = 'none';
+      if (btnToggleScoreboard) btnToggleScoreboard.style.display = 'none';
+    }
+
+    scoreboardVisible = !!room.show_scoreboard;
+    if (btnToggleScoreboard) {
+      if (scoreboardVisible) {
+        btnToggleScoreboard.textContent = '🙈 إخفاء الترتيب عن المتسابقين';
+        btnToggleScoreboard.style.borderColor = 'var(--color-red)';
+        btnToggleScoreboard.style.color = 'var(--color-red)';
+      } else {
+        btnToggleScoreboard.textContent = '📊 إظهار الترتيب للمتسابقين';
+        btnToggleScoreboard.style.borderColor = 'var(--color-yellow)';
+        btnToggleScoreboard.style.color = 'var(--color-yellow)';
+      }
+    }
+
     linkTvPresenter.href = `presenter.html?room=${room.id}`;
     linkTvPresenterControl.href = `presenter.html?room=${room.id}&control=true`;
 
@@ -1063,6 +1095,29 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRevealAnswer.style.opacity = '0.5';
   });
 
+  // Toggle Scoreboard click
+  if (btnToggleScoreboard) {
+    btnToggleScoreboard.addEventListener('click', () => {
+      scoreboardVisible = !scoreboardVisible;
+      socket.emit('toggle-scoreboard', { visible: scoreboardVisible });
+    });
+  }
+
+  socket.on('scoreboard-visibility-update', ({ visible }) => {
+    scoreboardVisible = visible;
+    if (btnToggleScoreboard) {
+      if (visible) {
+        btnToggleScoreboard.textContent = '🙈 إخفاء الترتيب عن المتسابقين';
+        btnToggleScoreboard.style.borderColor = 'var(--color-red)';
+        btnToggleScoreboard.style.color = 'var(--color-red)';
+      } else {
+        btnToggleScoreboard.textContent = '📊 إظهار الترتيب للمتسابقين';
+        btnToggleScoreboard.style.borderColor = 'var(--color-yellow)';
+        btnToggleScoreboard.style.color = 'var(--color-yellow)';
+      }
+    }
+  });
+
   // Start Game click
   btnStartGame.addEventListener('click', () => {
     socket.emit('start-game');
@@ -1070,6 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dashboardRoomStatus.style.color = 'var(--color-green)';
     btnStartGame.style.display = 'none';
     btnEndGame.style.display = 'inline-flex';
+    if (btnToggleScoreboard) btnToggleScoreboard.style.display = 'inline-flex';
     showSuccess('بدأت المسابقة! الآن اطرح الأسئلة للاعبين.');
   });
 
@@ -1080,6 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dashboardRoomStatus.textContent = 'منتهية';
       dashboardRoomStatus.style.color = 'var(--color-red)';
       btnEndGame.style.display = 'none';
+      if (btnToggleScoreboard) btnToggleScoreboard.style.display = 'none';
       showSuccess('انتهت المسابقة وتم تتويج الفائزين!');
     }
   });

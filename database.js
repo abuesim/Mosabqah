@@ -104,6 +104,17 @@ export async function initDatabase() {
     console.error('rooms name migration error:', err.message);
   }
 
+  // Safe migration for rooms: add show_scoreboard column if missing
+  try {
+    const roomsCols = await dbAll("PRAGMA table_info(rooms)");
+    if (!roomsCols.some(c => c.name === 'show_scoreboard')) {
+      await dbRun('ALTER TABLE rooms ADD COLUMN show_scoreboard INTEGER DEFAULT 0');
+      console.log('Migration: Added show_scoreboard column to rooms table.');
+    }
+  } catch (err) {
+    console.error('rooms show_scoreboard migration error:', err.message);
+  }
+
   await dbRun(`
     CREATE TABLE IF NOT EXISTS questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -353,7 +364,8 @@ export async function addPlayer(playerId, roomId, name, color) {
 }
 
 export async function setPlayerTeam(playerId, teamId) {
-  await dbRun('UPDATE users SET team_id = ? WHERE id = ?', [teamId, playerId]);
+  // Update both team_id and color column so visual representation changes everywhere
+  await dbRun('UPDATE users SET team_id = ?, color = ? WHERE id = ?', [teamId, teamId, playerId]);
 }
 
 export async function deletePlayer(playerId) {
@@ -428,4 +440,8 @@ export async function deleteQuestion(questionId) {
 export async function deleteAllQuestions() {
   await dbRun('DELETE FROM player_answers');
   return await dbRun('DELETE FROM questions');
+}
+
+export async function updateRoomScoreboardVisibility(roomId, visible) {
+  await dbRun('UPDATE rooms SET show_scoreboard = ? WHERE id = ?', [visible ? 1 : 0, roomId]);
 }

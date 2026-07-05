@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRandomQ = document.getElementById('btn-random-q');
   const btnTrialQ = document.getElementById('btn-trial-q');
   const btnGroupNextQ = document.getElementById('btn-group-next-q');
+  const btnRemoteToggleScoreboard = document.getElementById('btn-remote-toggle-scoreboard');
+  const containerRemoteToggleScoreboard = document.getElementById('container-remote-toggle-scoreboard');
+  let scoreboardVisible = false;
 
   // DOM Elements - Lists
   const remotePlayersList = document.getElementById('remote-players-list');
@@ -63,14 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
       btnStartEndGame.textContent = 'بدء المسابقة ▶️';
       btnStartEndGame.style.background = 'linear-gradient(135deg, var(--primary-accent), #3b82f6)';
       btnStartEndGame.disabled = false;
+      if (containerRemoteToggleScoreboard) containerRemoteToggleScoreboard.style.display = 'none';
     } else if (currentRoomStatus === 'playing') {
       btnStartEndGame.textContent = 'إنهاء المسابقة 🏁';
       btnStartEndGame.style.background = 'linear-gradient(135deg, var(--color-red), #ee5253)';
       btnStartEndGame.disabled = false;
+      if (containerRemoteToggleScoreboard) containerRemoteToggleScoreboard.style.display = 'block';
     } else if (currentRoomStatus === 'finished') {
       btnStartEndGame.textContent = 'المسابقة انتهت 🏁';
       btnStartEndGame.style.background = '#475569';
       btnStartEndGame.disabled = true;
+      if (containerRemoteToggleScoreboard) containerRemoteToggleScoreboard.style.display = 'none';
     }
   }
 
@@ -219,6 +225,23 @@ document.addEventListener('DOMContentLoaded', () => {
     showSuccess('انتهت المسابقة وتم عرض لوحة التتويج! 🏆');
   });
 
+  socket.on('scoreboard-visibility-update', ({ visible }) => {
+    scoreboardVisible = visible;
+    if (btnRemoteToggleScoreboard) {
+      if (visible) {
+        btnRemoteToggleScoreboard.textContent = '🙈 إخفاء الترتيب عن المتسابقين';
+        btnRemoteToggleScoreboard.style.borderColor = 'var(--color-red)';
+        btnRemoteToggleScoreboard.style.color = 'var(--color-red)';
+        btnRemoteToggleScoreboard.style.background = 'rgba(255, 71, 87, 0.05)';
+      } else {
+        btnRemoteToggleScoreboard.textContent = '📊 إظهار الترتيب للمتسابقين';
+        btnRemoteToggleScoreboard.style.borderColor = 'var(--color-yellow)';
+        btnRemoteToggleScoreboard.style.color = 'var(--color-yellow)';
+        btnRemoteToggleScoreboard.style.background = 'rgba(255, 165, 2, 0.05)';
+      }
+    }
+  });
+
   // --- Control Button Listeners ---
   if (btnStartEndGame) {
     btnStartEndGame.addEventListener('click', () => {
@@ -231,6 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
           showSuccess('تم إنهاء المسابقة 🏁');
         }
       }
+    });
+  }
+
+  if (btnRemoteToggleScoreboard) {
+    btnRemoteToggleScoreboard.addEventListener('click', () => {
+      scoreboardVisible = !scoreboardVisible;
+      socket.emit('toggle-scoreboard', { visible: scoreboardVisible });
     });
   }
 
