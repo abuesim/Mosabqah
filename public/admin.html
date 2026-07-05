@@ -128,9 +128,15 @@
       
       <!-- Room Info Header -->
       <div class="glass-panel" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; padding: 20px 30px;">
-        <div>
-          <div style="font-size: 14px; color: var(--text-secondary);">كود الغرفة الحالي:</div>
-          <div id="dashboard-room-code" style="font-size: 32px; font-weight: 800; color: var(--color-yellow);">----</div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <div>
+            <div style="font-size: 14px; color: var(--text-secondary);">كود الغرفة الحالي:</div>
+            <div id="dashboard-room-code" style="font-size: 32px; font-weight: 800; color: var(--color-yellow); line-height: 1;">----</div>
+          </div>
+          <!-- Clickable QR Code element next to it -->
+          <div id="admin-qrcode-container" style="display: none; cursor: pointer; background: white; padding: 4px; border-radius: var(--radius-sm); border: 2px solid var(--primary-accent); box-shadow: var(--shadow-sm); transition: all 0.2s;" title="اضغط لتكبير الباركود">
+            <img id="admin-qrcode" src="" alt="باركود الانضمام" style="width: 46px; height: 46px; display: block; border: none;">
+          </div>
         </div>
         <div>
           <div style="font-size: 14px; color: var(--text-secondary);">نوع اللعب:</div>
@@ -143,7 +149,8 @@
         
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <a id="link-tv-presenter" href="#" target="_blank" class="btn btn-secondary" style="font-size: 14px;">🖥️ شاشة العرض (TV)</a>
-          <a id="link-tv-presenter-control" href="#" target="_blank" class="btn btn-secondary" style="font-size: 14px; border-color: var(--primary-accent);">🕹️ شاشة العرض مع تحكم مدمج</a>
+          <a id="link-tv-presenter-control" href="#" target="_blank" class="btn btn-secondary" style="font-size: 14px;">🎮 شاشة العرض مع تحكم مدمج</a>
+          <a id="link-mobile-remote" href="#" target="_blank" class="btn" style="font-size: 14px; background: linear-gradient(135deg, var(--primary-accent), #3b82f6); border: none;">🕹️ ريموت التحكم (للجوال)</a>
           <button id="btn-start-game" class="btn" style="font-size: 14px;">بدء المسابقة ▶️</button>
           <button id="btn-end-game" class="btn btn-danger" style="font-size: 14px; display: none;">إنهاء المسابقة 🏁</button>
         </div>
@@ -343,6 +350,27 @@
             <button type="submit" id="btn-save-question" class="btn">حفظ وإضافة 💾</button>
           </div>
         </form>
+      </div>
+    </dialog>
+
+    <!-- Admin QR Modal -->
+    <dialog id="admin-qr-modal" style="background: transparent; border: none; outline: none; padding: 0; margin: auto; max-width: 90vw; z-index: 1000;">
+      <div class="glass-panel" style="background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.15); padding: 30px 40px; text-align: center; position: relative; box-shadow: var(--shadow-lg);">
+        <!-- Close (X) button -->
+        <button id="btn-close-admin-qr" type="button" title="إغلاق"
+          style="position: absolute; top: 12px; left: 12px; background: rgba(255,71,87,0.15); border: 1px solid rgba(255,71,87,0.4); color: var(--color-red); width: 40px; height: 40px; border-radius: 50%; font-size: 20px; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+          ✕
+        </button>
+
+        <h2 class="title-gradient" style="font-size: 24px; margin-bottom: 10px;">انضمام سريع للمتسابقين</h2>
+        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 20px;">امسح الرمز بكاميرا الجوال للانضمام مباشرة</p>
+
+        <div style="background: white; padding: 15px; border-radius: 12px; display: inline-block; margin-bottom: 18px; cursor: pointer;" id="admin-qr-modal-image-wrap" title="انقر لفتح صفحة اللاعب لتجربتها">
+          <img id="admin-qrcode-large" src="" alt="باركود الانضمام (كبير)" style="width: 280px; height: 280px; display: block; border: none;">
+        </div>
+
+        <div style="font-size: 13px; color: var(--text-secondary);">رمز الغرفة:</div>
+        <div id="admin-qr-modal-room-code" style="font-size: 36px; font-weight: 900; color: var(--color-yellow); letter-spacing: 4px; margin-top: 4px;">----</div>
       </div>
     </dialog>
 

@@ -361,6 +361,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Admin QR Code Modal Bindings
+  const adminQrcodeContainer = document.getElementById('admin-qrcode-container');
+  const adminQrModal = document.getElementById('admin-qr-modal');
+  const btnCloseAdminQr = document.getElementById('btn-close-admin-qr');
+  const adminQrModalImageWrap = document.getElementById('admin-qr-modal-image-wrap');
+
+  if (adminQrcodeContainer && adminQrModal) {
+    adminQrcodeContainer.addEventListener('click', () => {
+      adminQrModal.showModal();
+    });
+  }
+  if (btnCloseAdminQr && adminQrModal) {
+    btnCloseAdminQr.addEventListener('click', () => {
+      adminQrModal.close();
+    });
+  }
+  if (adminQrModalImageWrap) {
+    adminQrModalImageWrap.addEventListener('click', () => {
+      if (currentRoom) {
+        const playerJoinUrl = `${window.location.origin}/player.html?room=${currentRoom.id}`;
+        window.open(playerJoinUrl, '_blank');
+      }
+    });
+  }
+
   // 1. Create Room submission
   btnCreateRoom.addEventListener('click', () => {
     const password = adminPassInput.value.trim();
@@ -412,6 +437,25 @@ document.addEventListener('DOMContentLoaded', () => {
     dashboardRoomStatus.textContent = 'بانتظار البدء';
     linkTvPresenter.href = `presenter.html?room=${room.id}`;
     linkTvPresenterControl.href = `presenter.html?room=${room.id}&control=true`;
+
+    const linkMobileRemote = document.getElementById('link-mobile-remote');
+    if (linkMobileRemote) {
+      linkMobileRemote.href = `remote.html?room=${room.id}`;
+    }
+
+    // QR Code Generation for Admin Dashboard
+    const adminQrcodeContainer = document.getElementById('admin-qrcode-container');
+    const adminQrcode = document.getElementById('admin-qrcode');
+    const adminQrcodeLarge = document.getElementById('admin-qrcode-large');
+    const adminQrModalRoomCode = document.getElementById('admin-qr-modal-room-code');
+
+    if (adminQrcodeContainer && adminQrcode) {
+      const playerJoinUrl = `${window.location.origin}/player.html?room=${room.id}`;
+      adminQrcode.src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(playerJoinUrl)}`;
+      if (adminQrcodeLarge) adminQrcodeLarge.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(playerJoinUrl)}`;
+      if (adminQrModalRoomCode) adminQrModalRoomCode.textContent = room.id;
+      adminQrcodeContainer.style.display = 'block';
+    }
     
     showScreen('dashboard');
   });

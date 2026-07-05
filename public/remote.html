@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>جهاز التحكم عن بعد - مُسَابَقَة عصومي</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹️</text></svg>">
+  <style>
+    body {
+      padding-bottom: 30px;
+      font-size: 14px;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      min-height: 100vh;
+    }
+    .remote-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .remote-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 10px;
+      border-radius: var(--radius-md);
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: white;
+    }
+    .remote-btn:active {
+      transform: scale(0.95);
+    }
+    .remote-btn-green {
+      background: linear-gradient(135deg, var(--color-green), #10ac84);
+      box-shadow: 0 4px 12px rgba(46, 213, 115, 0.25);
+    }
+    .remote-btn-blue {
+      background: linear-gradient(135deg, var(--primary-accent), #2e86de);
+      box-shadow: 0 4px 12px rgba(112, 161, 255, 0.25);
+    }
+    .remote-btn-yellow {
+      background: linear-gradient(135deg, var(--color-yellow), #f39c12);
+      box-shadow: 0 4px 12px rgba(255, 165, 2, 0.25);
+    }
+    .remote-btn-red {
+      background: linear-gradient(135deg, var(--color-red), #ee5253);
+      box-shadow: 0 4px 12px rgba(255, 71, 87, 0.25);
+    }
+    .scoreboard-item-mobile {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-qty {
+      padding: 6px 10px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+    .btn-qty:active {
+      background: rgba(255,255,255,0.12);
+    }
+    .remote-q-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width: 480px; padding: 15px;">
+    <!-- HEADER -->
+    <header class="navbar" style="padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border);">
+      <div class="logo" style="font-size: 20px;">
+        <span>🕹️</span>
+        <span class="title-gradient">جهاز التحكم (الريموت)</span>
+      </div>
+      <a href="index.html" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">الرئيسية 🏠</a>
+    </header>
+
+    <!-- TOASTS -->
+    <div id="error-toast" class="toast error-toast" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; width: 90%; text-align: center;">خطأ</div>
+    <div id="success-toast" class="toast success-toast" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; width: 90%; text-align: center;">نجاح</div>
+
+    <!-- STEP 1: AUTHENTICATION -->
+    <section id="remote-screen-setup" class="screen active">
+      <div class="glass-panel" style="padding: 20px;">
+        <h3 style="text-align: center; margin-bottom: 18px;" class="title-gradient">تسجيل الدخول لجهاز التحكم</h3>
+        
+        <div id="remote-auth-step-1">
+          <div class="form-group" id="room-code-group">
+            <label class="form-label" for="room-code">رمز الغرفة (رقم المسابقة)</label>
+            <input type="number" id="room-code" class="form-input" placeholder="مثلاً: 1234" pattern="[0-9]*" inputmode="numeric" required>
+          </div>
+          <button id="btn-check-room" class="btn" style="width: 100%; margin-top: 10px;">التحقق من الغرفة 🔍</button>
+        </div>
+
+        <div id="remote-auth-step-2" style="display: none;">
+          <div style="background: rgba(112, 161, 255, 0.1); border: 1px solid var(--primary-accent); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 15px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-secondary);">المسابقة النشطة:</div>
+            <div id="validated-room-name" style="font-size: 16px; font-weight: 800; color: var(--primary-accent); margin-top: 2px;">----</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="admin-pass">كلمة مرور لوحة التحكم</label>
+            <input type="password" id="admin-pass" class="form-input" placeholder="ادخل كلمة المرور (الافتراضية: 123456)" required>
+          </div>
+          <button id="btn-auth-remote" class="btn" style="width: 100%; margin-top: 10px;">دخول لوحة التحكم 🔑</button>
+          <button type="button" id="btn-back-to-step-1" class="btn btn-secondary" style="width: 100%; margin-top: 10px; font-size: 12px; padding: 6px;">تغيير رمز الغرفة ↩️</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: REMOTE CONTROL BOARD -->
+    <section id="remote-screen-dashboard" class="screen" style="display: none;">
+      <!-- Room Summary -->
+      <div class="glass-panel" style="padding: 12px 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 11px; color: var(--text-secondary);">رمز الغرفة:</div>
+          <div id="dashboard-room-code" style="font-size: 22px; font-weight: 800; color: var(--color-yellow); line-height: 1;">----</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 11px; color: var(--text-secondary);">نوع اللعب:</div>
+          <div id="dashboard-room-type" style="font-size: 14px; font-weight: bold;">فردي</div>
+        </div>
+      </div>
+
+      <!-- Active Question Panel -->
+      <div class="glass-panel" style="padding: 15px; margin-bottom: 15px;">
+        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">السؤال النشط حالياً:</div>
+        <div id="active-question-none" style="color: var(--text-muted); text-align: center; padding: 10px; font-size: 13px;">لا يوجد سؤال معروض حالياً.</div>
+        <div id="active-question-details" style="display: none;">
+          <div id="active-q-text" style="font-size: 15px; font-weight: bold; margin-bottom: 10px; line-height: 1.4; color: white;">نص السؤال؟</div>
+          <div style="font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--glass-border); padding-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span>الحالة: <span id="active-q-status" style="font-weight: bold;">يستقبل الإجابات</span></span>
+            <span>المنضمين الذين أجابوا: <span id="active-q-answers" style="color: var(--primary-accent); font-weight: bold;">0</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Remote Control buttons grid -->
+      <div class="remote-grid">
+        <button id="btn-reveal" class="remote-btn remote-btn-green" style="border: none; outline: none;">
+          <span style="font-size: 22px; margin-bottom: 4px;">🔔</span>
+          <span>كشف الإجابة</span>
+        </button>
+        <button id="btn-random-q" class="remote-btn remote-btn-blue" style="border: none; outline: none;">
+          <span style="font-size: 22px; margin-bottom: 4px;">🎲</span>
+          <span>سؤال عشوائي</span>
+        </button>
+        <button id="btn-trial-q" class="remote-btn remote-btn-yellow" style="border: none; outline: none;">
+          <span style="font-size: 22px; margin-bottom: 4px;">🎯</span>
+          <span>سؤال تجريبي</span>
+        </button>
+        <button id="btn-end-g" class="remote-btn remote-btn-red" style="border: none; outline: none;">
+          <span style="font-size: 22px; margin-bottom: 4px;">🏁</span>
+          <span>إنهاء اللعبة</span>
+        </button>
+        <!-- Group mode autoplay next button -->
+        <button id="btn-group-next-q" class="remote-btn remote-btn-blue" style="grid-column: span 2; display: none; border: none; outline: none;">
+          <span style="font-size: 22px; margin-bottom: 4px;">⏭️</span>
+          <span>السؤال التالي للفرق</span>
+        </button>
+      </div>
+
+      <!-- Tab: Scoreboard Adjustments -->
+      <div class="glass-panel" style="padding: 15px; margin-bottom: 15px;">
+        <h3 style="font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 6px;">📊 رصد ونظام النقاط السريع</h3>
+        <div id="remote-players-list">
+          <div style="color: var(--text-muted); text-align: center; padding: 20px; font-size: 13px;">لا يوجد متسابقين متصلين حالياً.</div>
+        </div>
+      </div>
+
+      <!-- Tab: Manual Questions Quick Selector -->
+      <div class="glass-panel" style="padding: 15px;">
+        <h3 style="font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 6px;">📚 طرح سؤال يدوي من البنك</h3>
+        <!-- Category Quick Filters -->
+        <div id="remote-category-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed var(--glass-border);">
+          <!-- Category buttons -->
+        </div>
+        <div id="remote-questions-pool" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
+          <!-- Questions list -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="js/remote.js"></script>
+</body>
+</html>
