@@ -45,7 +45,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const questionsPool = document.getElementById('questions-pool');
   const adminPlayersList = document.getElementById('admin-players-list');
+  const adminTeamTotalsPanel = document.getElementById('admin-team-totals');
+  const adminTeamTotalsList = document.getElementById('admin-team-totals-list');
   const btnExportCsv = document.getElementById('btn-export-csv');
+
+  // Team color palette (for team badges / reassignment picker)
+  const TEAM_COLORS = [
+    { hex: '#ff4757', name: 'الأحمر' },
+    { hex: '#1e90ff', name: 'الأزرق' },
+    { hex: '#2ed573', name: 'الأخضر' },
+    { hex: '#ffa502', name: 'الأصفر' },
+    { hex: '#a55eea', name: 'البنفسجي' }
+  ];
+  function teamNameFor(hex) {
+    const t = TEAM_COLORS.find(c => c.hex.toLowerCase() === (hex || '').toLowerCase());
+    return t ? t.name : (hex || '—');
+  }
 
   // Dialog elements
   const dialogAddQuestion = document.getElementById('dialog-add-question');
@@ -360,11 +375,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Render team totals (aggregates by team_id — hidden if only one team present or in native group mode)
+  function renderTeamTotals() {
+    if (!adminTeamTotalsPanel || !adminTeamTotalsList) return;
+
+    // Skip team totals panel in native group mode (that mode already shows teams as first-class players)
+    if (currentRoom && currentRoom.type === 'group') {
+      adminTeamTotalsPanel.style.display = 'none';
+      return;
+    }
+
+    // Aggregate scores by team_id (falls back to color)
+    const teamMap = new Map();
+    playersList.forEach(p => {
+      const tid = (p.team_id || p.color || 'unknown').toLowerCase();
+      const entry = teamMap.get(tid) || { teamId: tid, color: p.team_id || p.color, total: 0, members: [] };
+      entry.total += (p.score || 0);
+      entry.members.push(p);
+      teamMap.set(tid, entry);
+    });
+
+    const teams = [...teamMap.values()].sort((a, b) => b.total - a.total);
+
+    // Only show if there are 2+ distinct teams
+    if (teams.length < 2) {
+      adminTeamTotalsPanel.style.display = 'none';
+      return;
+    }
+    adminTeamTotalsPanel.style.display = 'block';
+
+    adminTeamTotalsList.innerHTML = '';
+    teams.forEach((t, idx) => {
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 14px; border-radius: var(--radius-sm);
+        background: ${t.color}18; border: 1px solid ${t.color}55;
+        box-shadow: 0 0 12px ${t.color}20;
+      `;
+      const memberNames = t.members.map(m => m.name).join('، ');
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 18px; font-weight: 800;">${rankBadge}</span>
+          <span style="width: 14px; height: 14px; border-radius: 50%; background: ${t.color}; box-shadow: 0 0 8px ${t.color};"></span>
+          <div>
+            <div style="font-weight: 800; color: ${t.color};">فريق ${teamNameFor(t.color)}</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">${memberNames}</div>
+          </div>
+        </div>
+        <div style="font-size: 22px; font-weight: 900; color: var(--color-yellow);">${t.total} <span style="font-size: 12px; color: var(--text-secondary);">نقطة</span></div>
+      `;
+      adminTeamTotalsList.appendChild(row);
+    });
+  }
+
   // Render connected players or teams
   function renderPlayersList() {
     adminPlayersList.innerHTML = '';
     if (playersList.length === 0) {
       adminPlayersList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">لا يوجد لاعبون منضمون حالياً...</div>';
+      renderTeamTotals();
       return;
     }
 
@@ -383,6 +454,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
 
       const safeId = `pid-${btoa(unescape(encodeURIComponent(player.id))).replace(/=/g, '')}`;
+      const currentTeam = (player.team_id || player.color || '').toLowerCase();
+
+      // Team-picker swatches (only for individual mode; native group-mode teams don't need this)
+      const showTeamPicker = currentRoom && currentRoom.type !== 'group';
+      const teamPickerHtml = showTeamPicker ? `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.08);">
+          <span style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;">الفريق:</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            ${TEAM_COLORS.map(c => `
+              <button class="team-swatch" data-id="${player.id}" data-team="${c.hex}"
+                title="فريق ${c.name}"
+                style="width: 24px; height: 24px; border-radius: 50%; background: ${c.hex}; cursor: pointer;
+                       border: 3px solid ${currentTeam === c.hex.toLowerCase() ? '#fff' : 'transparent'};
+                       box-shadow: 0 0 8px ${c.hex}${currentTeam === c.hex.toLowerCase() ? '' : '00'};
+                       transition: all 0.2s ease;"></button>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
 
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; ${textDecor}">
@@ -393,6 +483,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <span class="player-score" id="score-val-${safeId}" style="font-size: 22px;">${player.score} نقطة</span>
         </div>
+
+        ${teamPickerHtml}
 
         <!-- Points Adjustment controls -->
         <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);">
@@ -410,6 +502,16 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       adminPlayersList.appendChild(item);
+    });
+
+    // Team reassignment
+    adminPlayersList.querySelectorAll('.team-swatch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pId = btn.dataset.id;
+        const teamId = btn.dataset.team;
+        socket.emit('assign-player-team', { playerId: pId, teamId });
+        showSuccess(`تم نقل اللاعب إلى فريق ${teamNameFor(teamId)}`);
+      });
     });
 
     // Quick +N buttons
@@ -444,6 +546,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showSuccess(`تم خصم ${val} نقطة`);
       });
     });
+
+    renderTeamTotals();
   }
 
   // Socket: Player Answered event to increment count in active panel

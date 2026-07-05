@@ -42,9 +42,22 @@ export async function initDatabase() {
       color TEXT NOT NULL,
       score INTEGER DEFAULT 0,
       is_active INTEGER DEFAULT 1,
+      team_id TEXT,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     )
   `);
+
+  // Safe migration for existing databases: add team_id column if missing
+  try {
+    const cols = await dbAll("PRAGMA table_info(users)");
+    if (!cols.some(c => c.name === 'team_id')) {
+      await dbRun('ALTER TABLE users ADD COLUMN team_id TEXT');
+      // Backfill: default team_id = color for existing rows
+      await dbRun("UPDATE users SET team_id = color WHERE team_id IS NULL");
+    }
+  } catch (err) {
+    console.error('team_id migration error:', err.message);
+  }
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS questions (
@@ -274,11 +287,16 @@ export async function updateRoomQuestionStatus(roomId, status) {
 }
 
 export async function addPlayer(playerId, roomId, name, color) {
+  // Default team_id = the player's color, so same-color players are one team by default
   await dbRun(
-    'INSERT INTO users (id, room_id, name, color, score, is_active) VALUES (?, ?, ?, ?, 0, 1)',
-    [playerId, roomId, name, color]
+    'INSERT INTO users (id, room_id, name, color, score, is_active, team_id) VALUES (?, ?, ?, ?, 0, 1, ?)',
+    [playerId, roomId, name, color, color]
   );
-  return { id: playerId, room_id: roomId, name, color, score: 0, is_active: 1 };
+  return { id: playerId, room_id: roomId, name, color, score: 0, is_active: 1, team_id: color };
+}
+
+export async function setPlayerTeam(playerId, teamId) {
+  await dbRun('UPDATE users SET team_id = ? WHERE id = ?', [teamId, playerId]);
 }
 
 export async function getPlayers(roomId) {

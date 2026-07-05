@@ -16,6 +16,7 @@ import {
   getPlayersOrdered,
   updatePlayerScore,
   setPlayerActiveStatus,
+  setPlayerTeam,
   getQuestions,
   getQuestion,
   submitAnswer,
@@ -377,6 +378,17 @@ io.on('connection', (socket) => {
     if (!roomCode || socket.role !== 'admin') return;
 
     await updatePlayerScore(playerId, parseInt(adjustment));
+    const players = await getPlayers(roomCode);
+    io.to(roomCode).emit('player-list-update', players);
+  });
+
+  // 7b. Assign Player to a Team (Admin — for individual-mode ad-hoc teams)
+  socket.on('assign-player-team', async ({ playerId, teamId }) => {
+    const roomCode = socket.roomId;
+    if (!roomCode || socket.role !== 'admin') return;
+    if (!playerId || !teamId) return;
+
+    await setPlayerTeam(playerId, teamId);
     const players = await getPlayers(roomCode);
     io.to(roomCode).emit('player-list-update', players);
   });

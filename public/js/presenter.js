@@ -36,6 +36,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultQText = document.getElementById('result-q-text');
   const correctAnswerDisplay = document.getElementById('correct-answer-display');
   const resultsLeaderboardContainer = document.getElementById('results-leaderboard-container');
+  const resultsTeamsPanel = document.getElementById('results-teams-panel');
+  const resultsTeamsContainer = document.getElementById('results-teams-container');
+
+  const TEAM_COLOR_NAMES = {
+    '#ff4757': 'الأحمر',
+    '#1e90ff': 'الأزرق',
+    '#2ed573': 'الأخضر',
+    '#ffa502': 'الأصفر',
+    '#a55eea': 'البنفسجي'
+  };
+
+  function renderTeamStandings(players) {
+    if (!resultsTeamsPanel || !resultsTeamsContainer) return;
+    if (roomType === 'group') {
+      resultsTeamsPanel.style.display = 'none';
+      return;
+    }
+    const map = new Map();
+    (players || []).forEach(p => {
+      const tid = (p.team_id || p.color || '').toLowerCase();
+      const entry = map.get(tid) || { color: p.team_id || p.color, total: 0, count: 0 };
+      entry.total += (p.score || 0);
+      entry.count += 1;
+      map.set(tid, entry);
+    });
+    const teams = [...map.values()].sort((a, b) => b.total - a.total);
+    if (teams.length < 2) {
+      resultsTeamsPanel.style.display = 'none';
+      return;
+    }
+    resultsTeamsPanel.style.display = 'block';
+    resultsTeamsContainer.innerHTML = '';
+    teams.forEach((t, idx) => {
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      const name = TEAM_COLOR_NAMES[(t.color || '').toLowerCase()] || t.color;
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 14px; border-radius: var(--radius-sm);
+        background: ${t.color}18; border: 1px solid ${t.color}66;
+        box-shadow: 0 0 12px ${t.color}22;
+      `;
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 18px; font-weight: 800;">${rankBadge}</span>
+          <span style="width: 14px; height: 14px; border-radius: 50%; background: ${t.color}; box-shadow: 0 0 10px ${t.color};"></span>
+          <div>
+            <div style="font-weight: 800; color: ${t.color};">فريق ${name}</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">${t.count} لاعب</div>
+          </div>
+        </div>
+        <div style="font-size: 22px; font-weight: 900; color: var(--color-yellow);">${t.total} <span style="font-size: 12px; color: var(--text-secondary);">نقطة</span></div>
+      `;
+      resultsTeamsContainer.appendChild(row);
+    });
+  }
 
   const podiumNames = {
     1: document.getElementById('podium-name-1'),
@@ -507,7 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Populate Leaderboard (already sorted by score DESC from server)
+    // 2. Populate Team standings (color-based) then individual leaderboard
+    renderTeamStandings(players);
+
     resultsLeaderboardContainer.innerHTML = '';
 
     // Take Top 5 players
