@@ -110,93 +110,115 @@
         </div>
       </div>
 
-      <!-- Main Controls Layout -->
-      <div class="admin-grid">
-        
-        <!-- COLUMN 1: QUESTIONS LIST AND ACTIVE QUESTION STATE -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-          
-          <!-- Active Question Control Panel -->
-          <div class="glass-panel" style="border-color: rgba(112, 161, 255, 0.3);">
-            <h3 style="font-size: 20px; margin-bottom: 15px;" class="title-gradient">إدارة السؤال النشط</h3>
-            
-            <div id="active-question-none" style="text-align: center; color: var(--text-secondary); padding: 20px;">
-              لا يوجد سؤال معروض حالياً على الشاشات.
-            </div>
+      <!-- TABS BAR -->
+      <div class="admin-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 0;">
+        <button class="admin-tab-btn active" data-tab="control" style="flex: 1; padding: 14px 12px; background: rgba(112, 161, 255, 0.15); border: none; border-bottom: 3px solid var(--primary-accent); color: var(--text-primary); font-size: 15px; font-weight: 800; cursor: pointer; border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: all 0.3s ease;">
+          🎮 التحكم
+        </button>
+        <button class="admin-tab-btn" data-tab="questions" style="flex: 1; padding: 14px 12px; background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--text-secondary); font-size: 15px; font-weight: 700; cursor: pointer; border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: all 0.3s ease;">
+          📚 الأسئلة (<span id="tab-questions-count">0</span>)
+        </button>
+        <button class="admin-tab-btn" data-tab="players" style="flex: 1; padding: 14px 12px; background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--text-secondary); font-size: 15px; font-weight: 700; cursor: pointer; border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: all 0.3s ease;">
+          👥 المتسابقين (<span id="tab-players-count">0</span>)
+        </button>
+      </div>
 
-            <div id="active-question-details" style="display: none;">
-              <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: var(--radius-md); margin-bottom: 20px;">
-                <div id="active-q-text" style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">نص السؤال؟</div>
-                <div style="font-size: 14px; color: var(--text-secondary);">
-                  الحالة الحالية: <span id="active-q-status" style="color: var(--color-yellow); font-weight: bold;">معروض ويستقبل الإجابات</span>
-                  | الإجابات المستلمة: <span id="active-q-answers" style="color: var(--primary-accent); font-weight: 800; font-size: 16px;">0</span>
-                </div>
-              </div>
-              
-              <div style="display: flex; gap: 12px;">
-                <button id="btn-reveal-answer" class="btn" style="flex-grow: 1; padding: 14px; background: linear-gradient(135deg, var(--color-green), #218c74); box-shadow: 0 4px 15px rgba(46, 213, 115, 0.3);">
-                  🔔 كشف الإجابة الصحيحة وتحديث النقاط
-                </button>
-              </div>
+      <!-- TAB: CONTROL -->
+      <div class="admin-tab-content" data-tab="control">
+
+        <!-- Trial Question card (shown before real game starts) -->
+        <div id="trial-panel" class="glass-panel" style="margin-bottom: 20px; padding: 18px 24px; border-color: rgba(255, 165, 2, 0.4); background: rgba(255, 165, 2, 0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="font-size: 18px; margin-bottom: 4px; color: var(--color-yellow);">🎯 السؤال التجريبي</h3>
+              <div style="font-size: 12px; color: var(--text-secondary);">اطرح سؤالاً تجريبياً قبل بداية المسابقة لتعريف اللاعبين بآلية اللعب — لا تُحتسب نقاطه.</div>
             </div>
+            <button id="btn-trial-question" class="btn" style="background: linear-gradient(135deg, var(--color-yellow), #d4880e); padding: 10px 18px; font-size: 14px;">
+              اطرح سؤال تجريبي 🎯
+            </button>
           </div>
-
-          <!-- Questions Pool list -->
-          <div class="glass-panel">
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="font-size: 20px;">بنك الأسئلة المتاحة</h3>
-                <button id="btn-open-add-dialog" class="btn btn-secondary" style="font-size: 13px; padding: 6px 12px;">
-                  ➕ إضافة سؤال يدوياً
-                </button>
-              </div>
-              <div style="display: flex; gap: 8px;">
-                <a href="/questions_template.csv" download="questions_template.csv" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex-grow: 1; text-align: center;">
-                  📥 تحميل قالب Excel
-                </a>
-                <button id="btn-import-csv" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex-grow: 1;">
-                  📤 رفع أسئلة من Excel
-                </button>
-                <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
-              </div>
-            </div>
-
-            <div id="questions-pool" style="display: flex; flex-direction: column; gap: 12px; max-height: 500px; overflow-y: auto; padding-left: 5px;">
-              <!-- Dynamic Questions List -->
-            </div>
-          </div>
-
         </div>
 
-        <!-- COLUMN 2: PLAYERS & SCORING -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-          
-          <!-- Team totals (auto-aggregated by color; hidden if only 1 team) -->
-          <div id="admin-team-totals" class="glass-panel" style="display: none; padding: 18px 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
-              <h3 style="font-size: 18px;">🏳️ مجاميع الفرق (حسب اللون)</h3>
-              <span style="font-size: 11px; color: var(--text-muted);">تُحسب تلقائياً — يمكن نقل اللاعب لفريق آخر من الأسفل</span>
+        <!-- Active Question Control Panel -->
+        <div class="glass-panel" style="border-color: rgba(112, 161, 255, 0.3);">
+          <h3 style="font-size: 20px; margin-bottom: 15px;" class="title-gradient">إدارة السؤال النشط</h3>
+
+          <div id="active-question-none" style="text-align: center; color: var(--text-secondary); padding: 20px;">
+            لا يوجد سؤال معروض حالياً على الشاشات.
+          </div>
+
+          <div id="active-question-details" style="display: none;">
+            <div id="trial-badge" style="display: none; background: rgba(255, 165, 2, 0.15); border: 1px solid rgba(255, 165, 2, 0.4); color: var(--color-yellow); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; font-weight: bold; text-align: center;">
+              🎯 هذا سؤال تجريبي — لن تُحتسب أي نقاط
             </div>
-            <div id="admin-team-totals-list" style="display: flex; flex-direction: column; gap: 10px;">
-              <!-- Dynamic team rows -->
+            <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: var(--radius-md); margin-bottom: 20px;">
+              <div id="active-q-text" style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">نص السؤال؟</div>
+              <div style="font-size: 14px; color: var(--text-secondary);">
+                الحالة الحالية: <span id="active-q-status" style="color: var(--color-yellow); font-weight: bold;">معروض ويستقبل الإجابات</span>
+                | الإجابات المستلمة: <span id="active-q-answers" style="color: var(--primary-accent); font-weight: 800; font-size: 16px;">0</span>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+              <button id="btn-reveal-answer" class="btn" style="flex-grow: 1; padding: 14px; background: linear-gradient(135deg, var(--color-green), #218c74); box-shadow: 0 4px 15px rgba(46, 213, 115, 0.3);">
+                🔔 كشف الإجابة الصحيحة وتحديث النقاط
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: QUESTIONS -->
+      <div class="admin-tab-content" data-tab="questions" style="display: none;">
+        <div class="glass-panel">
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="font-size: 20px;">بنك الأسئلة المتاحة</h3>
+              <button id="btn-open-add-dialog" class="btn btn-secondary" style="font-size: 13px; padding: 6px 12px;">
+                ➕ إضافة سؤال يدوياً
+              </button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <a href="/questions_template.csv" download="questions_template.csv" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex-grow: 1; text-align: center;">
+                📥 تحميل قالب Excel
+              </a>
+              <button id="btn-import-csv" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex-grow: 1;">
+                📤 رفع أسئلة من Excel
+              </button>
+              <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
             </div>
           </div>
 
-          <!-- Players leaderboard and Score Adjustments -->
-          <div class="glass-panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
-              <h3 style="font-size: 20px;">المتسابقون والنقاط</h3>
-              <button id="btn-export-csv" class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px; display: none;">📥 تصدير CSV</button>
-            </div>
-
-            <div id="admin-players-list" class="leaderboard-list" style="max-height: 600px; overflow-y: auto;">
-              <!-- Dynamic Players item with edit controls -->
-              <div style="color: var(--text-muted); text-align: center; padding: 4px 0;">لا يوجد لاعبون منضمون حالياً...</div>
-            </div>
+          <div id="questions-pool" style="display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow-y: auto; padding-left: 5px;">
+            <!-- Dynamic Questions List -->
           </div>
+        </div>
+      </div>
 
+      <!-- TAB: PLAYERS -->
+      <div class="admin-tab-content" data-tab="players" style="display: none;">
+        <!-- Team totals (auto-aggregated by color; hidden if only 1 team) -->
+        <div id="admin-team-totals" class="glass-panel" style="display: none; padding: 18px 20px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
+            <h3 style="font-size: 18px;">🏳️ مجاميع الفرق (حسب اللون)</h3>
+            <span style="font-size: 11px; color: var(--text-muted);">تُحسب تلقائياً — يمكن نقل اللاعب لفريق آخر من الأسفل</span>
+          </div>
+          <div id="admin-team-totals-list" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Dynamic team rows -->
+          </div>
         </div>
 
+        <!-- Players leaderboard and Score Adjustments -->
+        <div class="glass-panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
+            <h3 style="font-size: 20px;">المتسابقون والنقاط</h3>
+            <button id="btn-export-csv" class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px; display: none;">📥 تصدير CSV</button>
+          </div>
+
+          <div id="admin-players-list" class="leaderboard-list" style="max-height: 70vh; overflow-y: auto;">
+            <div style="color: var(--text-muted); text-align: center; padding: 4px 0;">لا يوجد لاعبون منضمون حالياً...</div>
+          </div>
+        </div>
       </div>
     </section>
 

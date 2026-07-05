@@ -530,11 +530,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Question shown on TV
-  socket.on('question-shown', ({ question, timerDuration }) => {
+  socket.on('question-shown', ({ question, timerDuration, isTrial }) => {
     currentQuestionStatus = 'showing';
-    qCategory.textContent = question.category === 'islamic' ? 'إسلامي' : 
-                             question.category === 'riddles' ? 'لغز' : 
-                             question.category === 'science' ? 'علوم' : 'عام';
+    if (isTrial) {
+      qCategory.textContent = '🎯 سؤال تجريبي';
+      qCategory.style.background = 'rgba(255, 165, 2, 0.2)';
+      qCategory.style.color = 'var(--color-yellow)';
+    } else {
+      qCategory.style.background = 'rgba(165, 94, 234, 0.2)';
+      qCategory.style.color = 'var(--primary-purple)';
+      qCategory.textContent = question.category === 'islamic' ? 'إسلامي' :
+                               question.category === 'riddles' ? 'لغز' :
+                               question.category === 'science' ? 'علوم' : 'عام';
+    }
     qText.textContent = question.question_text;
     
     document.getElementById('q-opt-text-1').textContent = question.option1;

@@ -87,6 +87,40 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { adminSuccess.style.display = 'none'; }, 3000);
   }
 
+  // Tab switching
+  const tabButtons = document.querySelectorAll('.admin-tab-btn');
+  const tabContents = document.querySelectorAll('.admin-tab-content');
+  function activateTab(tabName) {
+    tabButtons.forEach(btn => {
+      const isActive = btn.dataset.tab === tabName;
+      btn.classList.toggle('active', isActive);
+      btn.style.background = isActive ? 'rgba(112, 161, 255, 0.15)' : 'transparent';
+      btn.style.borderBottomColor = isActive ? 'var(--primary-accent)' : 'transparent';
+      btn.style.color = isActive ? 'var(--text-primary)' : 'var(--text-secondary)';
+    });
+    tabContents.forEach(c => {
+      c.style.display = (c.dataset.tab === tabName) ? 'block' : 'none';
+    });
+  }
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+  });
+
+  const tabQuestionsCount = document.getElementById('tab-questions-count');
+  const tabPlayersCount = document.getElementById('tab-players-count');
+
+  // Trial question button
+  const btnTrialQuestion = document.getElementById('btn-trial-question');
+  const trialBadge = document.getElementById('trial-badge');
+  const trialPanel = document.getElementById('trial-panel');
+  if (btnTrialQuestion) {
+    btnTrialQuestion.addEventListener('click', () => {
+      socket.emit('start-trial-question');
+      showSuccess('جارٍ عرض السؤال التجريبي على الشاشات...');
+      activateTab('control');
+    });
+  }
+
   // Helper: Switch screens
   function showScreen(screenId) {
     Object.keys(screens).forEach(key => {
@@ -279,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Socket: Questions pool received (shuffle so admin sees random order 1st, 10th, 15th, 3rd...)
   socket.on('questions-list', (list) => {
     questionsList = shuffle(list);
+    if (tabQuestionsCount) tabQuestionsCount.textContent = list.length;
     renderQuestionsPool();
   });
 
@@ -291,11 +326,43 @@ document.addEventListener('DOMContentLoaded', () => {
   // Socket: Players list update
   socket.on('player-list-update', (players) => {
     playersList = players;
+    if (tabPlayersCount) tabPlayersCount.textContent = players.length;
     renderPlayersList();
     if (players.length > 0) {
       btnExportCsv.style.display = 'inline-flex';
     } else {
       btnExportCsv.style.display = 'none';
+    }
+  });
+
+  // Socket: Trial question started
+  socket.on('trial-started', ({ question }) => {
+    if (trialBadge) trialBadge.style.display = 'block';
+    if (trialPanel) {
+      trialPanel.style.background = 'rgba(255, 165, 2, 0.15)';
+      trialPanel.style.boxShadow = '0 0 20px rgba(255, 165, 2, 0.25)';
+    }
+    // Sync active question panel
+    if (activeQuestionNone) activeQuestionNone.style.display = 'none';
+    if (activeQuestionDetails) activeQuestionDetails.style.display = 'block';
+    if (activeQText) activeQText.textContent = question.question_text;
+    if (activeQStatus) {
+      activeQStatus.textContent = 'معروض ويستقبل الإجابات (تجريبي)';
+      activeQStatus.style.color = 'var(--color-yellow)';
+    }
+    if (activeQAnswers) activeQAnswers.textContent = '0';
+    if (btnRevealAnswer) {
+      btnRevealAnswer.disabled = false;
+      btnRevealAnswer.style.opacity = '1';
+    }
+  });
+
+  // Socket: Trial question ended (real game can proceed)
+  socket.on('trial-ended', () => {
+    if (trialBadge) trialBadge.style.display = 'none';
+    if (trialPanel) {
+      trialPanel.style.background = 'rgba(255, 165, 2, 0.05)';
+      trialPanel.style.boxShadow = 'none';
     }
   });
 

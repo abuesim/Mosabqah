@@ -64,6 +64,28 @@ const activeTimers = {};
 const activeTurns = {};
 // Track which questions have already been asked in each room (prevent repetition)
 const askedQuestions = {};
+// Trial mode: while true, no scores are awarded for the current question
+const trialMode = {};
+// In-memory answer store for the trial question (never touches DB because trial question ID=0 has no FK)
+const trialAnswers = {};
+
+async function fetchQuestion(questionId) {
+  if (parseInt(questionId) === 0) return TRIAL_QUESTION;
+  return await getQuestion(questionId);
+}
+
+// Hardcoded trial question — used for a practice round before the real game
+const TRIAL_QUESTION = {
+  id: 0, // sentinel — never collides with DB auto-increment IDs (which start at 1)
+  question_text: '🎯 سؤال تجريبي: ما هي أطول سورة في القرآن الكريم؟',
+  option1: 'سورة آل عمران',
+  option2: 'سورة البقرة',
+  option3: 'سورة النساء',
+  option4: 'سورة الأعراف',
+  correct_option: 2,
+  difficulty: 'easy',
+  category: 'general'
+};
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -253,6 +275,14 @@ io.on('connection', (socket) => {
     await performShowQuestion(roomCode, questionId);
   });
 
+  // 4b. Trial question (Admin) — practice round, no scoring
+  socket.on('start-trial-question', async () => {
+    const roomCode = socket.roomId;
+    if (!roomCode || socket.role !== 'admin') return;
+    io.to(roomCode).emit('trial-started', { question: TRIAL_QUESTION });
+    await performShowQuestion(roomCode, 0, { isTrial: true });
+  });
+
   // 5. Submit Answer (Player)
   socket.on('submit-answer', async ({ questionId, chosenOption }) => {
     const roomCode = socket.roomId;
@@ -265,7 +295,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const question = await getQuestion(questionId);
+    const question = await fetchQuestion(questionId);
     if (!question) return;
 
     // Calculate time taken
@@ -276,12 +306,39 @@ io.on('connection', (socket) => {
     }
 
     const isCorrect = (parseInt(chosenOption) === question.correct_option);
-    
-    // Save to DB
+
+    // Trial question: never touch DB (FK constraint would reject question_id=0), store in memory
+    if (trialMode[roomCode]) {
+      if (!trialAnswers[roomCode]) trialAnswers[roomCode] = [];
+      if (trialAnswers[roomCode].find(a => a.player_id === playerId)) {
+        socket.emit('error-msg', 'لقد قمت بالإجابة على هذا السؤال بالفعل');
+        return;
+      }
+      trialAnswers[roomCode].push({
+        player_id: playerId,
+        chosen_option: parseInt(chosenOption),
+        is_correct: isCorrect ? 1 : 0,
+        answered_in_seconds: timeSpent
+      });
+      socket.emit('answer-submitted-ack', { isCorrect, chosenOption });
+      const count = trialAnswers[roomCode].length;
+      io.to(roomCode).emit('player-answered-count', count);
+
+      const players = await getPlayers(roomCode);
+      const activePlayers = players.filter(p => p.is_active === 1);
+      if (count >= activePlayers.length && activePlayers.length > 0) {
+        clearTimeout(activeTimers[roomCode]);
+        await updateRoomQuestionStatus(roomCode, 'time_up');
+        io.to(roomCode).emit('timer-expired');
+      }
+      return;
+    }
+
+    // Save to DB (real question)
     const success = await submitAnswer(roomCode, playerId, questionId, chosenOption, isCorrect, timeSpent);
     if (success) {
       socket.emit('answer-submitted-ack', { isCorrect, chosenOption });
-      
+
       // Update count of answered players
       const answers = await getAnswersForQuestion(roomCode, questionId);
       io.to(roomCode).emit('player-answered-count', answers.length);
@@ -312,21 +369,25 @@ io.on('connection', (socket) => {
       clearTimeout(activeTimers[roomCode]);
     }
 
-    const question = await getQuestion(room.current_question_id);
+    const isTrial = !!trialMode[roomCode];
+    const question = await fetchQuestion(room.current_question_id);
     await updateRoomQuestionStatus(roomCode, 'revealed');
 
-    // Calculate and update scores for all players who answered correctly
-    const answers = await getAnswersForQuestion(roomCode, room.current_question_id);
-    
-    for (const ans of answers) {
-      if (ans.is_correct) {
-        // Base points: 100. Speed bonus: up to 50 points based on speed
-        const timeTaken = ans.answered_in_seconds || 0;
-        const maxTime = room.timer_duration;
-        const speedBonus = Math.max(0, Math.round(((maxTime - timeTaken) / maxTime) * 50));
-        const totalPoints = 100 + speedBonus;
+    // Answers come from DB for real questions, from in-memory buffer for trial
+    const answers = isTrial
+      ? (trialAnswers[roomCode] || [])
+      : await getAnswersForQuestion(roomCode, room.current_question_id);
 
-        await updatePlayerScore(ans.player_id, totalPoints);
+    // Award points only for real questions
+    if (!isTrial) {
+      for (const ans of answers) {
+        if (ans.is_correct) {
+          const timeTaken = ans.answered_in_seconds || 0;
+          const maxTime = room.timer_duration;
+          const speedBonus = Math.max(0, Math.round(((maxTime - timeTaken) / maxTime) * 50));
+          const totalPoints = 100 + speedBonus;
+          await updatePlayerScore(ans.player_id, totalPoints);
+        }
       }
     }
 
@@ -342,14 +403,19 @@ io.on('connection', (socket) => {
       if (playerSocket.role === 'player') {
         const playerAnswer = answers.find(a => a.player_id === playerSocket.playerId);
         const scoreData = players.find(p => p.id === playerSocket.playerId);
-        
+
+        const earned = (!isTrial && playerAnswer && playerAnswer.is_correct)
+          ? (100 + Math.max(0, Math.round(((room.timer_duration - playerAnswer.answered_in_seconds) / room.timer_duration) * 50)))
+          : 0;
+
         playerSocket.emit('answer-revealed', {
           correctOption: question.correct_option,
           correctText: question[`option${question.correct_option}`],
           isCorrect: playerAnswer ? !!playerAnswer.is_correct : false,
           chosenOption: playerAnswer ? playerAnswer.chosen_option : null,
-          pointsEarned: playerAnswer && playerAnswer.is_correct ? (100 + Math.max(0, Math.round(((room.timer_duration - playerAnswer.answered_in_seconds) / room.timer_duration) * 50))) : 0,
-          totalScore: scoreData ? scoreData.score : 0
+          pointsEarned: earned,
+          totalScore: scoreData ? scoreData.score : 0,
+          isTrial
         });
       }
     }
@@ -359,6 +425,7 @@ io.on('connection', (socket) => {
       correctOption: question.correct_option,
       correctText: question[`option${question.correct_option}`],
       players,
+      isTrial,
       answersSummary: {
         total: answers.length,
         correct: answers.filter(a => a.is_correct).length,
@@ -370,6 +437,13 @@ io.on('connection', (socket) => {
         }
       }
     });
+
+    // Clear trial mode after reveal so the real game can proceed
+    if (isTrial) {
+      trialMode[roomCode] = false;
+      trialAnswers[roomCode] = [];
+      io.to(roomCode).emit('trial-ended');
+    }
   });
 
   // 7. Manual Score Adjustment (Admin)
@@ -549,17 +623,25 @@ io.on('connection', (socket) => {
   });
 
   // Helper function to throw question
-  async function performShowQuestion(roomCode, questionId) {
+  async function performShowQuestion(roomCode, questionId, { isTrial = false } = {}) {
     const room = await getRoom(roomCode);
-    const question = await getQuestion(questionId);
+    const question = await fetchQuestion(questionId);
     if (!room || !question) return;
 
-    // Track this question as asked (prevent repetition)
-    if (!askedQuestions[roomCode]) {
-      askedQuestions[roomCode] = new Set();
+    // Set/clear trial mode for this room
+    if (isTrial) {
+      trialMode[roomCode] = true;
+      trialAnswers[roomCode] = [];
+    } else {
+      trialMode[roomCode] = false;
+      trialAnswers[roomCode] = [];
+      // Track this question as asked (prevent repetition) — only for real questions
+      if (!askedQuestions[roomCode]) {
+        askedQuestions[roomCode] = new Set();
+      }
+      askedQuestions[roomCode].add(parseInt(questionId));
+      io.to(roomCode).emit('asked-questions-update', Array.from(askedQuestions[roomCode]));
     }
-    askedQuestions[roomCode].add(parseInt(questionId));
-    io.to(roomCode).emit('asked-questions-update', Array.from(askedQuestions[roomCode]));
 
     // Clear previous timers if any
     if (activeTimers[roomCode]) {
@@ -594,7 +676,8 @@ io.on('connection', (socket) => {
       // Broadcast question to all in the room
       io.to(roomCode).emit('question-shown', {
         question: playerQuestion,
-        timerDuration: freshRoom.timer_duration
+        timerDuration: freshRoom.timer_duration,
+        isTrial: !!trialMode[roomCode]
       });
 
       // Set server-side fallback timer to mark time-up automatically

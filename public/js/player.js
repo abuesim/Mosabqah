@@ -198,13 +198,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Question Received
-  socket.on('question-shown', ({ question, timerDuration }) => {
+  socket.on('question-shown', ({ question, timerDuration, isTrial }) => {
     currentQuestion = question;
-    
+
     // Fill text and options
-    questionCategory.textContent = question.category === 'islamic' ? 'إسلامي' : 
-                                   question.category === 'riddles' ? 'لغز' : 
-                                   question.category === 'science' ? 'علوم' : 'عام';
+    if (isTrial) {
+      questionCategory.textContent = '🎯 تجريبي';
+      questionCategory.style.background = 'rgba(255, 165, 2, 0.2)';
+      questionCategory.style.color = 'var(--color-yellow)';
+    } else {
+      questionCategory.style.background = 'rgba(112, 161, 255, 0.15)';
+      questionCategory.style.color = 'var(--primary-accent)';
+      questionCategory.textContent = question.category === 'islamic' ? 'إسلامي' :
+                                     question.category === 'riddles' ? 'لغز' :
+                                     question.category === 'science' ? 'علوم' : 'عام';
+    }
     questionText.textContent = question.question_text;
     
     document.getElementById('opt-text-1').textContent = question.option1;
@@ -322,16 +330,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Reveal Answer results
-  socket.on('answer-revealed', ({ correctOption, correctText, isCorrect, chosenOption, pointsEarned, totalScore }) => {
+  socket.on('answer-revealed', ({ correctOption, correctText, isCorrect, chosenOption, pointsEarned, totalScore, isTrial }) => {
     activeScore = totalScore;
     feedbackTotalScore.textContent = totalScore;
     sounds.stopHeartbeat();
 
     if (isCorrect) {
-      feedbackIcon.textContent = '✅';
-      feedbackTitle.textContent = 'إجابة صحيحة!';
+      feedbackIcon.textContent = isTrial ? '🎯' : '✅';
+      feedbackTitle.textContent = isTrial ? 'إجابة صحيحة (تجريبي)' : 'إجابة صحيحة!';
       feedbackTitle.style.color = 'var(--color-green)';
-      feedbackDesc.textContent = 'أحسنت! إجابتك صحيحة.';
+      feedbackDesc.textContent = isTrial
+        ? 'أحسنت! هذا كان سؤالاً تجريبياً — لم تُحتسب نقاط.'
+        : 'أحسنت! إجابتك صحيحة.';
 
       // Show correct-answer box (green) with the confirmed answer
       if (correctAnswerBox && correctAnswerText) {
@@ -339,9 +349,14 @@ document.addEventListener('DOMContentLoaded', () => {
         correctAnswerBox.style.display = 'block';
       }
 
-      scoreEarnedPanel.style.display = 'block';
-      feedbackPoints.textContent = `+${pointsEarned}`;
-      feedbackPoints.style.color = 'var(--color-green)';
+      // In trial mode, don't show the "+N points" panel since nothing is awarded
+      if (isTrial) {
+        scoreEarnedPanel.style.display = 'none';
+      } else {
+        scoreEarnedPanel.style.display = 'block';
+        feedbackPoints.textContent = `+${pointsEarned}`;
+        feedbackPoints.style.color = 'var(--color-green)';
+      }
 
       sounds.playCorrect();
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
