@@ -216,10 +216,16 @@ document.addEventListener('DOMContentLoaded', () => {
       
       answeredCount.textContent = ansCount;
 
-      // Reset options styling
+      // Reset options styling (only display non-empty options)
       Object.keys(qOptions).forEach(key => {
-        qOptions[key].style.opacity = '1';
-        qOptions[key].style.border = '2px solid transparent';
+        const optVal = question[`option${key}`];
+        if (optVal && optVal.trim() !== '') {
+          qOptions[key].style.display = 'flex';
+          qOptions[key].style.opacity = '1';
+          qOptions[key].style.border = '2px solid transparent';
+        } else {
+          qOptions[key].style.display = 'none';
+        }
       });
 
       // Synchronize timer bar
@@ -357,12 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     answeredCount.textContent = '0';
 
-    // Show options
+    // Show options only if they contain text
     Object.keys(qOptions).forEach(k => {
-      qOptions[k].style.display = 'flex';
-      qOptions[k].style.opacity = '1';
-      qOptions[k].style.border = '2px solid transparent';
-      qOptions[k].style.boxShadow = 'var(--shadow-sm)';
+      const optVal = question[`option${k}`];
+      if (optVal && optVal.trim() !== '') {
+        qOptions[k].style.display = 'flex';
+        qOptions[k].style.opacity = '1';
+        qOptions[k].style.border = '2px solid transparent';
+        qOptions[k].style.boxShadow = 'var(--shadow-sm)';
+      } else {
+        qOptions[k].style.display = 'none';
+      }
     });
 
     // Reset countdown
@@ -422,17 +433,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Answer counts and percentages
     const totalAns = answersSummary.total || 1; // prevent div by zero
     for (let opt = 1; opt <= 4; opt++) {
-      const count = answersSummary.distribution[opt] || 0;
-      const percent = Math.round((count / totalAns) * 100);
+      const optionTextVal = document.getElementById(`q-opt-text-${opt}`).textContent;
+      const container = document.getElementById(`res-container-${opt}`);
       
-      document.getElementById(`res-count-${opt}`).textContent = `${count} لاعب (${percent}%)`;
-      document.getElementById(`res-bar-${opt}`).style.width = `${percent}%`;
-      
-      // If it is the correct answer, give it a special style
-      if (opt === correctOption) {
-        document.getElementById(`res-bar-${opt}`).style.background = 'var(--color-green)';
+      if (optionTextVal && optionTextVal.trim() !== '') {
+        if (container) container.style.display = 'block';
+        const count = answersSummary.distribution[opt] || 0;
+        const percent = Math.round((count / totalAns) * 100);
+        
+        document.getElementById(`res-count-${opt}`).textContent = `${count} لاعب (${percent}%)`;
+        document.getElementById(`res-bar-${opt}`).style.width = `${percent}%`;
+        
+        // If it is the correct answer, give it a special style
+        if (opt === correctOption) {
+          document.getElementById(`res-bar-${opt}`).style.background = 'var(--color-green)';
+        } else {
+          document.getElementById(`res-bar-${opt}`).style.background = '#555';
+        }
       } else {
-        document.getElementById(`res-bar-${opt}`).style.background = '#555';
+        if (container) container.style.display = 'none';
       }
     }
 

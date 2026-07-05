@@ -195,12 +195,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('opt-text-3').textContent = question.option3;
     document.getElementById('opt-text-4').textContent = question.option4;
     
-    // Re-enable and reset options
+    // Re-enable and reset options (hiding empty ones dynamically)
     optionButtons.forEach(btn => {
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.transform = 'none';
-      btn.classList.remove('selected-option');
+      const optNum = btn.getAttribute('data-opt');
+      const optVal = question[`option${optNum}`];
+      
+      if (optVal && optVal.trim() !== '') {
+        btn.style.display = 'flex';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.transform = 'none';
+        btn.classList.remove('selected-option');
+      } else {
+        btn.style.display = 'none';
+      }
     });
 
     // Start Timer
