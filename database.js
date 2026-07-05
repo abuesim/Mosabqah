@@ -419,3 +419,13 @@ export async function clearRoomData(roomId) {
   await dbRun('DELETE FROM users WHERE room_id = ?', [roomId]);
   await dbRun('DELETE FROM rooms WHERE id = ?', [roomId]);
 }
+
+export async function deleteQuestion(questionId) {
+  await dbRun('DELETE FROM player_answers WHERE question_id = ?', [questionId]);
+  return await dbRun('DELETE FROM questions WHERE id = ?', [questionId]);
+}
+
+export async function deleteAllQuestions() {
+  await dbRun('DELETE FROM player_answers');
+  return await dbRun('DELETE FROM questions');
+}

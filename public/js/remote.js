@@ -425,9 +425,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-weight: bold; font-size: 13px; color: white;">${q.question_text}</div>
           <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">التصنيف: ${q.category || 'عام'} | الصعوبة: ${q.difficulty || 'medium'}</div>
         </div>
-        <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted); opacity: 0.5;"' : 'style="padding: 6px 12px; font-size: 11px; min-width: 60px;"'}>
-          ${isAsked ? 'تم طرحه' : 'طرح 🚀'}
-        </button>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted); opacity: 0.5;"' : 'style="padding: 6px 12px; font-size: 11px; min-width: 60px;"'}>
+            ${isAsked ? 'تم طرحه' : 'طرح 🚀'}
+          </button>
+          <button class="btn-delete-q" data-id="${q.id}" data-text="${q.question_text}" style="background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.4); color: var(--color-red); width: 28px; height: 28px; border-radius: var(--radius-sm); cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+            🗑️
+          </button>
+        </div>
       `;
       remoteQuestionsPool.appendChild(card);
     });
@@ -437,6 +442,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const questionId = btn.dataset.id;
         socket.emit('show-question', { questionId });
         showSuccess('تم طرح السؤال المختار بنجاح! 🚀');
+      });
+    });
+
+    // Add listeners to permanently delete questions from remote
+    remoteQuestionsPool.querySelectorAll('.btn-delete-q').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qId = btn.dataset.id;
+        const qText = btn.dataset.text;
+        if (confirm(`هل أنت متأكد من رغبتك في حذف هذا السؤال نهائياً؟\n"${qText}"`)) {
+          socket.emit('delete-question', { questionId: qId });
+        }
       });
     });
   }

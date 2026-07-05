@@ -239,11 +239,16 @@
       <div class="admin-tab-content" data-tab="questions" style="display: none;">
         <div class="glass-panel">
           <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
               <h3 style="font-size: 20px;">بنك الأسئلة المتاحة</h3>
-              <button id="btn-open-add-dialog" class="btn btn-secondary" style="font-size: 13px; padding: 6px 12px;">
-                ➕ إضافة سؤال يدوياً
-              </button>
+              <div style="display: flex; gap: 8px;">
+                <button id="btn-delete-all-questions" class="btn btn-danger" style="font-size: 13px; padding: 6px 12px; background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.4); color: var(--color-red); border-radius: var(--radius-sm); cursor: pointer;">
+                  🗑️ حذف جميع الأسئلة
+                </button>
+                <button id="btn-open-add-dialog" class="btn btn-secondary" style="font-size: 13px; padding: 6px 12px;">
+                  ➕ إضافة سؤال يدوياً
+                </button>
+              </div>
             </div>
             <div style="display: flex; gap: 8px;">
               <a href="/questions_template.csv" download="questions_template.csv" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; flex-grow: 1; text-align: center;">

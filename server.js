@@ -23,7 +23,9 @@ import {
   submitAnswer,
   getAnswersForQuestion,
   clearRoomData,
-  addQuestion
+  addQuestion,
+  deleteQuestion,
+  deleteAllQuestions
 } from './database.js';
 
 dotenv.config();
@@ -619,6 +621,34 @@ io.on('connection', (socket) => {
       socket.emit('question-added-ack', `تم استيراد ${questions.length} سؤال بنجاح!`);
     } catch (err) {
       socket.emit('error-msg', 'حدث خطأ أثناء استيراد الأسئلة');
+      console.error(err);
+    }
+  });
+
+  // 10b. Delete Question (Admin)
+  socket.on('delete-question', async ({ questionId }) => {
+    if (socket.role !== 'admin') return;
+    try {
+      await deleteQuestion(parseInt(questionId));
+      const list = await getQuestions();
+      socket.emit('questions-list', list);
+      socket.emit('question-added-ack', 'تم حذف السؤال بنجاح!');
+    } catch (err) {
+      socket.emit('error-msg', 'حدث خطأ أثناء حذف السؤال');
+      console.error(err);
+    }
+  });
+
+  // 10c. Delete All Questions (Admin)
+  socket.on('delete-all-questions', async () => {
+    if (socket.role !== 'admin') return;
+    try {
+      await deleteAllQuestions();
+      const list = await getQuestions();
+      socket.emit('questions-list', list);
+      socket.emit('question-added-ack', 'تم حذف جميع الأسئلة بنجاح!');
+    } catch (err) {
+      socket.emit('error-msg', 'حدث خطأ أثناء حذف جميع الأسئلة');
       console.error(err);
     }
   });

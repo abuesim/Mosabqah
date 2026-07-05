@@ -283,6 +283,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const btnDeleteAllQuestions = document.getElementById('btn-delete-all-questions');
+  if (btnDeleteAllQuestions) {
+    btnDeleteAllQuestions.addEventListener('click', () => {
+      if (confirm('⚠️ تحذير هام جداً:\nهل أنت متأكد من رغبتك في حذف جميع الأسئلة الموجودة بقاعدة البيانات نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+        if (confirm('تأكيد أخير: هل تريد حقاً مسح كل بنك الأسئلة؟')) {
+          socket.emit('delete-all-questions');
+        }
+      }
+    });
+  }
+
   // Handle Dialog Actions
   btnOpenAddDialog.addEventListener('click', () => {
     dialogAddQuestion.showModal();
@@ -760,12 +771,18 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-weight: bold; margin-bottom: 5px;">${q.question_text}${askedBadge}</div>
           <div style="font-size: 12px; color: var(--text-secondary);">
             التصنيف: <strong>${categoryText}</strong> |
+            مستوى الصعوبة: <strong style="color: var(--primary-accent);">${q.difficulty || 'medium'}</strong> |
             الإجابة الصحيحة: <span style="color: var(--color-green); font-weight: bold;">${q['option' + q.correct_option]}</span>
           </div>
         </div>
-        <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled' : ''} style="font-size: 13px; padding: 8px 16px; flex-shrink: 0; ${isAsked ? 'cursor: not-allowed; background: #555;' : ''}">
-          ${isAsked ? 'تم عرضه' : 'طرح السؤال 🚀'}
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+          <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled' : ''} style="font-size: 13px; padding: 8px 16px; ${isAsked ? 'cursor: not-allowed; background: #555;' : ''}">
+            ${isAsked ? 'تم عرضه' : 'طرح السؤال 🚀'}
+          </button>
+          <button class="btn-delete-q" data-id="${q.id}" data-text="${q.question_text}" title="حذف السؤال نهائياً" style="background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.4); color: var(--color-red); width: 36px; height: 36px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+            🗑️
+          </button>
+        </div>
       `;
 
       questionsPool.appendChild(card);
@@ -793,6 +810,17 @@ document.addEventListener('DOMContentLoaded', () => {
         activeQAnswers.textContent = '0';
         btnRevealAnswer.disabled = false;
         btnRevealAnswer.style.opacity = '1';
+      });
+    });
+
+    // Add listeners to permanently delete questions
+    questionsPool.querySelectorAll('.btn-delete-q').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qId = btn.dataset.id;
+        const qText = btn.dataset.text;
+        if (confirm(`هل أنت متأكد من رغبتك في حذف هذا السؤال نهائياً؟\n"${qText}"`)) {
+          socket.emit('delete-question', { questionId: qId });
+        }
       });
     });
   }
