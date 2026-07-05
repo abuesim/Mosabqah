@@ -285,6 +285,11 @@ export async function getPlayers(roomId) {
   return await dbAll('SELECT * FROM users WHERE room_id = ? ORDER BY score DESC', [roomId]);
 }
 
+// For group mode: return teams in a stable insertion order (rowid) so turn rotation is consistent
+export async function getPlayersOrdered(roomId) {
+  return await dbAll('SELECT * FROM users WHERE room_id = ? ORDER BY rowid ASC', [roomId]);
+}
+
 export async function updatePlayerScore(playerId, scoreToAdd) {
   await dbRun('UPDATE users SET score = score + ? WHERE id = ?', [scoreToAdd, playerId]);
 }

@@ -13,6 +13,7 @@ import {
   updateRoomQuestionStatus,
   addPlayer,
   getPlayers,
+  getPlayersOrdered,
   updatePlayerScore,
   setPlayerActiveStatus,
   getQuestions,
@@ -60,6 +61,29 @@ function generateRoomCode() {
 // In-memory active session timers to handle countdowns safely
 const activeTimers = {};
 const activeTurns = {};
+// Track which questions have already been asked in each room (prevent repetition)
+const askedQuestions = {};
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Compute turn payload (index + team ID) so clients can resolve the active team by ID.
+async function buildTurnPayload(roomCode) {
+  const teamsInOrder = await getPlayersOrdered(roomCode);
+  const index = activeTurns[roomCode] !== undefined ? activeTurns[roomCode] : 0;
+  const activeTeam = teamsInOrder[index];
+  return {
+    index,
+    activeTeamId: activeTeam ? activeTeam.id : null,
+    orderedIds: teamsInOrder.map(t => t.id)
+  };
+}
 
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
@@ -92,6 +116,8 @@ io.on('connection', (socket) => {
         
         activeTurns[roomCode] = 0; // Starts with Red Team (index 0)
       }
+
+      askedQuestions[roomCode] = new Set();
 
       socket.emit('room-created', room);
       console.log(`Room created: ${roomCode} (${type}), Teams: ${teamCount || 4}`);
@@ -127,15 +153,21 @@ io.on('connection', (socket) => {
       const questionsList = await getQuestions();
       socket.emit('questions-list', questionsList);
 
+      // Ensure asked-questions tracker exists for this room
+      if (!askedQuestions[cleanRoomCode]) {
+        askedQuestions[cleanRoomCode] = new Set();
+      }
+      socket.emit('asked-questions-update', Array.from(askedQuestions[cleanRoomCode]));
+
       const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
-      socket.emit('turn-updated', activeTurns[cleanRoomCode] !== undefined ? activeTurns[cleanRoomCode] : 0);
-    } 
+      socket.emit('turn-updated', await buildTurnPayload(cleanRoomCode));
+    }
     else if (role === 'presenter') {
       socket.emit('presenter-joined', { room });
       const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
-      socket.emit('turn-updated', activeTurns[cleanRoomCode] !== undefined ? activeTurns[cleanRoomCode] : 0);
+      socket.emit('turn-updated', await buildTurnPayload(cleanRoomCode));
       
       // If there is an active question, sync it
       if (room.current_question_id && room.question_status !== 'idle') {
@@ -204,6 +236,10 @@ io.on('connection', (socket) => {
   socket.on('start-game', async () => {
     const roomCode = socket.roomId;
     if (!roomCode || socket.role !== 'admin') return;
+
+    // Reset asked questions when starting a fresh game
+    askedQuestions[roomCode] = new Set();
+    io.to(roomCode).emit('asked-questions-update', []);
 
     await updateRoomStatus(roomCode, 'active');
     io.to(roomCode).emit('game-started');
@@ -408,7 +444,7 @@ io.on('connection', (socket) => {
     const roomCode = socket.roomId;
     if (!roomCode) return;
     activeTurns[roomCode] = parseInt(turnIndex);
-    io.to(roomCode).emit('turn-updated', activeTurns[roomCode]);
+    io.to(roomCode).emit('turn-updated', await buildTurnPayload(roomCode));
     console.log(`Active turn updated to index ${turnIndex} for room ${roomCode}`);
   });
 
@@ -423,9 +459,12 @@ io.on('connection', (socket) => {
     if (!question) return;
 
     const isCorrect = (question.correct_option === parseInt(chosenOption));
-    const players = await getPlayers(roomCode);
+    // In group mode, use the fixed insertion order (rowid) so turn rotation is consistent
+    // regardless of score changes.
+    const teamsInOrder = await getPlayersOrdered(roomCode);
     const turnIndex = activeTurns[roomCode] !== undefined ? activeTurns[roomCode] : 0;
-    const activePlayer = players[turnIndex];
+    const activePlayer = teamsInOrder[turnIndex];
+    const pointsAwarded = isCorrect ? 100 : 0;
 
     if (isCorrect && activePlayer) {
       await updatePlayerScore(activePlayer.id, 100); // Standard 100 points for correct group answer
@@ -437,19 +476,29 @@ io.on('connection', (socket) => {
     await updateRoomQuestionStatus(roomCode, 'revealed');
 
     // Advance turn to next team
-    if (players.length > 0) {
-      activeTurns[roomCode] = (turnIndex + 1) % players.length;
+    if (teamsInOrder.length > 0) {
+      activeTurns[roomCode] = (turnIndex + 1) % teamsInOrder.length;
     }
 
     // Broadcast updates
     const updatedPlayers = await getPlayers(roomCode);
     io.to(roomCode).emit('player-list-update', updatedPlayers);
-    io.to(roomCode).emit('turn-updated', activeTurns[roomCode]);
+    io.to(roomCode).emit('turn-updated', await buildTurnPayload(roomCode));
 
     io.to(roomCode).emit('presenter-reveal', {
       correctOption: question.correct_option,
       correctText: question[`option${question.correct_option}`],
       players: updatedPlayers,
+      groupMode: true,
+      activeTeam: activePlayer ? {
+        id: activePlayer.id,
+        name: activePlayer.name,
+        color: activePlayer.color,
+        chosenOption: parseInt(chosenOption),
+        chosenText: question[`option${chosenOption}`],
+        isCorrect,
+        pointsAwarded
+      } : null,
       answersSummary: {
         total: 0,
         correct: 0,
@@ -468,17 +517,22 @@ io.on('connection', (socket) => {
     const questions = await getQuestions();
     if (questions.length === 0) return;
 
-    let nextQIndex = 0;
-    if (room.current_question_id) {
-      const currentIdx = questions.findIndex(q => q.id === room.current_question_id);
-      nextQIndex = (currentIdx + 1) % questions.length;
+    if (!askedQuestions[roomCode]) {
+      askedQuestions[roomCode] = new Set();
+    }
+    const asked = askedQuestions[roomCode];
+
+    // Pick a random unasked question
+    const remaining = questions.filter(q => !asked.has(q.id));
+    if (remaining.length === 0) {
+      io.to(roomCode).emit('no-more-questions');
+      console.log(`No more unasked questions for room ${roomCode}`);
+      return;
     }
 
-    const nextQ = questions[nextQIndex];
-    if (nextQ) {
-      console.log(`Autoplay: throwing next question ID ${nextQ.id} for room ${roomCode}`);
-      await performShowQuestion(roomCode, nextQ.id);
-    }
+    const nextQ = remaining[Math.floor(Math.random() * remaining.length)];
+    console.log(`Autoplay: picked random question ID ${nextQ.id} for room ${roomCode} (${asked.size + 1}/${questions.length})`);
+    await performShowQuestion(roomCode, nextQ.id);
   });
 
   // Helper function to throw question
@@ -486,6 +540,13 @@ io.on('connection', (socket) => {
     const room = await getRoom(roomCode);
     const question = await getQuestion(questionId);
     if (!room || !question) return;
+
+    // Track this question as asked (prevent repetition)
+    if (!askedQuestions[roomCode]) {
+      askedQuestions[roomCode] = new Set();
+    }
+    askedQuestions[roomCode].add(parseInt(questionId));
+    io.to(roomCode).emit('asked-questions-update', Array.from(askedQuestions[roomCode]));
 
     // Clear previous timers if any
     if (activeTimers[roomCode]) {

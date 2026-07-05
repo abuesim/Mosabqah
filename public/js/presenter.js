@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let roomType = 'individual';
   let playersList = [];
   let currentTurnIndex = 0;
+  let currentActiveTeamId = null;
   let currentQuestionStatus = 'idle';
 
   // Group turn indicator elements
@@ -299,15 +300,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Update Active Turn
-  socket.on('turn-updated', (turnIndex) => {
-    currentTurnIndex = turnIndex;
+  socket.on('turn-updated', (payload) => {
+    if (typeof payload === 'object' && payload !== null) {
+      currentTurnIndex = payload.index || 0;
+      currentActiveTeamId = payload.activeTeamId || null;
+    } else {
+      currentTurnIndex = payload || 0;
+      currentActiveTeamId = null;
+    }
     updateTurnDisplay();
   });
 
   // Helper: Update turn display in both Presenter View and Control Bar
   function updateTurnDisplay() {
     if (roomType === 'group' && playersList.length > 0) {
-      const activeTeam = playersList[currentTurnIndex];
+      // Prefer looking up by activeTeamId (stable across score-sorted list), fallback to index.
+      const activeTeam = currentActiveTeamId
+        ? playersList.find(p => p.id === currentActiveTeamId)
+        : playersList[currentTurnIndex];
       if (activeTeam) {
         presenterActiveTeamName.textContent = activeTeam.name;
         
@@ -416,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Answer revealed (TV layout update)
-  socket.on('presenter-reveal', ({ correctOption, correctText, players, answersSummary }) => {
+  socket.on('presenter-reveal', ({ correctOption, correctText, players, answersSummary, groupMode, activeTeam }) => {
     currentQuestionStatus = 'revealed';
     clearInterval(countdownInterval);
 
@@ -430,34 +440,76 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('res-text-3').textContent = document.getElementById('q-opt-text-3').textContent;
     document.getElementById('res-text-4').textContent = document.getElementById('q-opt-text-4').textContent;
 
-    // Answer counts and percentages
-    const totalAns = answersSummary.total || 1; // prevent div by zero
-    for (let opt = 1; opt <= 4; opt++) {
-      const optionTextVal = document.getElementById(`q-opt-text-${opt}`).textContent;
-      const container = document.getElementById(`res-container-${opt}`);
-      
-      if (optionTextVal && optionTextVal.trim() !== '') {
-        if (container) container.style.display = 'block';
-        const count = answersSummary.distribution[opt] || 0;
-        const percent = Math.round((count / totalAns) * 100);
-        
-        document.getElementById(`res-count-${opt}`).textContent = `${count} لاعب (${percent}%)`;
-        document.getElementById(`res-bar-${opt}`).style.width = `${percent}%`;
-        
-        // If it is the correct answer, give it a special style
-        if (opt === correctOption) {
-          document.getElementById(`res-bar-${opt}`).style.background = 'var(--color-green)';
-        } else {
-          document.getElementById(`res-bar-${opt}`).style.background = '#555';
+    const answerBarsSection = document.getElementById('answer-bars-section');
+    const groupResultCard = document.getElementById('group-result-card');
+
+    if (groupMode) {
+      // Hide per-player distribution, show team-answered card instead
+      if (answerBarsSection) answerBarsSection.style.display = 'none';
+      if (groupResultCard && activeTeam) {
+        groupResultCard.style.display = 'block';
+        groupResultCard.style.borderColor = activeTeam.color;
+        groupResultCard.style.background = `${activeTeam.color}15`;
+        groupResultCard.style.boxShadow = `0 0 20px ${activeTeam.color}40`;
+
+        const teamLabel = document.getElementById('group-result-team-name');
+        const chosenLabel = document.getElementById('group-result-chosen');
+        const verdictLabel = document.getElementById('group-result-verdict');
+        const pointsLabel = document.getElementById('group-result-points');
+
+        if (teamLabel) {
+          teamLabel.textContent = activeTeam.name;
+          teamLabel.style.color = activeTeam.color;
+          teamLabel.style.textShadow = `0 0 10px ${activeTeam.color}`;
         }
-      } else {
-        if (container) container.style.display = 'none';
+        if (chosenLabel) chosenLabel.textContent = `اختار: ${activeTeam.chosenText || '—'}`;
+        if (verdictLabel) {
+          if (activeTeam.isCorrect) {
+            verdictLabel.textContent = '✅ إجابة صحيحة';
+            verdictLabel.style.color = 'var(--color-green)';
+          } else {
+            verdictLabel.textContent = '❌ إجابة خاطئة';
+            verdictLabel.style.color = 'var(--color-red)';
+          }
+        }
+        if (pointsLabel) {
+          pointsLabel.textContent = activeTeam.isCorrect
+            ? `حصل على ${activeTeam.pointsAwarded} نقطة 🎉`
+            : 'لم يحصل على نقاط لهذا السؤال';
+        }
+      }
+    } else {
+      if (answerBarsSection) answerBarsSection.style.display = 'flex';
+      if (groupResultCard) groupResultCard.style.display = 'none';
+
+      // Answer counts and percentages (individual mode only)
+      const totalAns = (answersSummary && answersSummary.total) || 1; // prevent div by zero
+      for (let opt = 1; opt <= 4; opt++) {
+        const optionTextVal = document.getElementById(`q-opt-text-${opt}`).textContent;
+        const container = document.getElementById(`res-container-${opt}`);
+
+        if (optionTextVal && optionTextVal.trim() !== '') {
+          if (container) container.style.display = 'block';
+          const count = (answersSummary && answersSummary.distribution[opt]) || 0;
+          const percent = Math.round((count / totalAns) * 100);
+
+          document.getElementById(`res-count-${opt}`).textContent = `${count} لاعب (${percent}%)`;
+          document.getElementById(`res-bar-${opt}`).style.width = `${percent}%`;
+
+          if (opt === correctOption) {
+            document.getElementById(`res-bar-${opt}`).style.background = 'var(--color-green)';
+          } else {
+            document.getElementById(`res-bar-${opt}`).style.background = '#555';
+          }
+        } else {
+          if (container) container.style.display = 'none';
+        }
       }
     }
 
-    // 2. Populate Leaderboard
+    // 2. Populate Leaderboard (already sorted by score DESC from server)
     resultsLeaderboardContainer.innerHTML = '';
-    
+
     // Take Top 5 players
     const topPlayers = players.slice(0, 5);
     topPlayers.forEach((player, idx) => {
@@ -534,6 +586,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sounds.playSuccess(); // Play victory fanfare
     showScreen('finished');
+  });
+
+  socket.on('no-more-questions', () => {
+    alert('تم عرض جميع الأسئلة المتاحة! يمكنك إنهاء المسابقة أو إضافة أسئلة جديدة.');
   });
 
   socket.on('error-msg', (msg) => {

@@ -115,8 +115,17 @@
           
           <h3 id="result-q-text" style="font-size: 20px; line-height: 1.5; margin-bottom: 30px;">سؤال تم إجابته؟</h3>
           
-          <!-- Custom answer bars to show distribution -->
-          <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 30px;">
+          <!-- GROUP MODE result card (shows which team answered and outcome) -->
+          <div id="group-result-card" style="display: none; padding: 24px; border-radius: var(--radius-md); border: 2px solid transparent; margin-bottom: 30px; text-align: center; transition: all 0.4s ease;">
+            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">إجابة الفريق</div>
+            <div id="group-result-team-name" style="font-size: 32px; font-weight: 900; margin-bottom: 12px;">—</div>
+            <div id="group-result-chosen" style="font-size: 18px; color: var(--text-secondary); margin-bottom: 10px;">اختار: —</div>
+            <div id="group-result-verdict" style="font-size: 24px; font-weight: 800; margin-bottom: 10px;">—</div>
+            <div id="group-result-points" style="font-size: 18px; font-weight: 700; color: var(--color-yellow);">—</div>
+          </div>
+
+          <!-- INDIVIDUAL MODE answer distribution bars -->
+          <div id="answer-bars-section" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 30px;">
             <div id="res-container-1">
               <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <span>أ. <span id="res-text-1">الخيار الأول</span></span>

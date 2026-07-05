@@ -6,6 +6,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let adminPassword = '';
   let questionsList = [];
   let playersList = [];
+  let askedQuestionsSet = new Set();
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
   // DOM Elements
   const screens = {
@@ -251,9 +261,15 @@ document.addEventListener('DOMContentLoaded', () => {
     showScreen('dashboard');
   });
 
-  // Socket: Questions pool received
+  // Socket: Questions pool received (shuffle so admin sees random order 1st, 10th, 15th, 3rd...)
   socket.on('questions-list', (list) => {
-    questionsList = list;
+    questionsList = shuffle(list);
+    renderQuestionsPool();
+  });
+
+  // Socket: Asked questions update (mark used questions in the pool)
+  socket.on('asked-questions-update', (askedIds) => {
+    askedQuestionsSet = new Set((askedIds || []).map(id => parseInt(id)));
     renderQuestionsPool();
   });
 
@@ -276,7 +292,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    questionsList.forEach(q => {
+    // Show asked questions greyed out at the bottom, unasked at the top
+    const unasked = questionsList.filter(q => !askedQuestionsSet.has(parseInt(q.id)));
+    const asked = questionsList.filter(q => askedQuestionsSet.has(parseInt(q.id)));
+    [...unasked, ...asked].forEach(q => {
+      const isAsked = askedQuestionsSet.has(parseInt(q.id));
       const card = document.createElement('div');
       card.style.cssText = `
         background: rgba(255, 255, 255, 0.04);
@@ -287,30 +307,35 @@ document.addEventListener('DOMContentLoaded', () => {
         justify-content: space-between;
         align-items: center;
         gap: 15px;
+        ${isAsked ? 'opacity: 0.45; filter: grayscale(0.6);' : ''}
       `;
 
-      const categoryText = q.category === 'islamic' ? 'إسلامي' : 
-                           q.category === 'riddles' ? 'لغز' : 
+      const categoryText = q.category === 'islamic' ? 'إسلامي' :
+                           q.category === 'riddles' ? 'لغز' :
                            q.category === 'science' ? 'علوم' : 'عام';
+
+      const askedBadge = isAsked
+        ? '<span style="background: var(--color-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px;">✓ تم عرضه</span>'
+        : '';
 
       card.innerHTML = `
         <div style="flex-grow: 1;">
-          <div style="font-weight: bold; margin-bottom: 5px;">${q.question_text}</div>
+          <div style="font-weight: bold; margin-bottom: 5px;">${q.question_text}${askedBadge}</div>
           <div style="font-size: 12px; color: var(--text-secondary);">
-            التصنيف: <strong>${categoryText}</strong> | 
+            التصنيف: <strong>${categoryText}</strong> |
             الإجابة الصحيحة: <span style="color: var(--color-green); font-weight: bold;">${q['option' + q.correct_option]}</span>
           </div>
         </div>
-        <button class="btn btn-send-q" data-id="${q.id}" style="font-size: 13px; padding: 8px 16px; flex-shrink: 0;">
-          طرح السؤال 🚀
+        <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled' : ''} style="font-size: 13px; padding: 8px 16px; flex-shrink: 0; ${isAsked ? 'cursor: not-allowed; background: #555;' : ''}">
+          ${isAsked ? 'تم عرضه' : 'طرح السؤال 🚀'}
         </button>
       `;
 
       questionsPool.appendChild(card);
     });
 
-    // Add listeners to throw questions
-    questionsPool.querySelectorAll('.btn-send-q').forEach(btn => {
+    // Add listeners to throw questions (only unasked)
+    questionsPool.querySelectorAll('.btn-send-q:not([disabled])').forEach(btn => {
       btn.addEventListener('click', () => {
         const qId = btn.dataset.id;
         
@@ -343,53 +368,80 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    playersList.forEach(player => {
+    // Sort by score DESC on the client too (server already does this, defense-in-depth)
+    const sorted = [...playersList].sort((a, b) => (b.score || 0) - (a.score || 0));
+    sorted.forEach((player, idx) => {
       const item = document.createElement('div');
       item.className = 'leaderboard-item';
       item.style.flexDirection = 'column';
       item.style.alignItems = 'stretch';
-      item.style.gap = '10px';
+      item.style.gap = '12px';
+      item.style.borderRight = `4px solid ${player.color}`;
 
-      // Status indicator style
       const dotColor = player.is_active === 1 ? player.color : '#6b7280';
       const textDecor = player.is_active === 1 ? '' : 'text-decoration: line-through; opacity: 0.6;';
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+
+      const safeId = `pid-${btoa(unescape(encodeURIComponent(player.id))).replace(/=/g, '')}`;
 
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; ${textDecor}">
-          <div class="player-info">
+          <div class="player-info" style="gap: 10px;">
+            <span style="font-weight: 800; font-size: 18px; min-width: 30px;">${rankBadge}</span>
             <div class="player-dot" style="color: ${dotColor}; background-color: ${dotColor}"></div>
             <span class="player-name">${player.name}</span>
           </div>
-          <span class="player-score" id="score-val-${player.id}">${player.score} نقطة</span>
+          <span class="player-score" id="score-val-${safeId}" style="font-size: 22px;">${player.score} نقطة</span>
         </div>
-        
-        <!-- Points Adjustment form -->
-        <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 5px;">
-          <input type="number" id="adjust-input-${player.id}" class="form-input" value="50" style="width: 70px; padding: 4px 8px; font-size: 13px; text-align: center;" required>
-          <button class="btn btn-adjust-plus" data-id="${player.id}" style="padding: 4px 10px; font-size: 12px; background: var(--color-green); box-shadow: none;">+ إضافة</button>
-          <button class="btn btn-adjust-minus" data-id="${player.id}" style="padding: 4px 10px; font-size: 12px; background: var(--color-red); box-shadow: none;">- خصم</button>
+
+        <!-- Points Adjustment controls -->
+        <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);">
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-quick-plus" data-id="${player.id}" data-amt="10" style="padding: 6px 10px; font-size: 12px; background: rgba(46, 213, 115, 0.9); box-shadow: none;">+10</button>
+            <button class="btn btn-quick-plus" data-id="${player.id}" data-amt="50" style="padding: 6px 10px; font-size: 12px; background: rgba(46, 213, 115, 0.9); box-shadow: none;">+50</button>
+            <button class="btn btn-quick-plus" data-id="${player.id}" data-amt="100" style="padding: 6px 10px; font-size: 12px; background: rgba(46, 213, 115, 0.9); box-shadow: none;">+100</button>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input type="number" id="adjust-input-${safeId}" class="form-input" value="50" min="1" style="width: 65px; padding: 4px 8px; font-size: 13px; text-align: center;">
+            <button class="btn btn-adjust-plus" data-id="${player.id}" data-safe="${safeId}" style="padding: 6px 10px; font-size: 12px; background: var(--color-green); box-shadow: none;">➕ إضافة</button>
+            <button class="btn btn-adjust-minus" data-id="${player.id}" data-safe="${safeId}" style="padding: 6px 10px; font-size: 12px; background: var(--color-red); box-shadow: none;">➖ خصم</button>
+          </div>
         </div>
       `;
 
       adminPlayersList.appendChild(item);
     });
 
-    // Score adjustments logic
+    // Quick +N buttons
+    adminPlayersList.querySelectorAll('.btn-quick-plus').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pId = btn.dataset.id;
+        const amt = parseInt(btn.dataset.amt) || 0;
+        socket.emit('adjust-score', { playerId: pId, adjustment: amt });
+        showSuccess(`تمت إضافة ${amt} نقطة`);
+      });
+    });
+
+    // Custom-amount + / - buttons
     adminPlayersList.querySelectorAll('.btn-adjust-plus').forEach(btn => {
       btn.addEventListener('click', () => {
         const pId = btn.dataset.id;
-        const val = parseInt(document.getElementById(`adjust-input-${pId}`).value) || 0;
+        const safe = btn.dataset.safe;
+        const val = parseInt(document.getElementById(`adjust-input-${safe}`).value) || 0;
+        if (val <= 0) { showError('أدخل رقماً موجباً'); return; }
         socket.emit('adjust-score', { playerId: pId, adjustment: val });
-        showSuccess('تمت إضافة النقاط بنجاح');
+        showSuccess(`تمت إضافة ${val} نقطة`);
       });
     });
 
     adminPlayersList.querySelectorAll('.btn-adjust-minus').forEach(btn => {
       btn.addEventListener('click', () => {
         const pId = btn.dataset.id;
-        const val = -1 * (parseInt(document.getElementById(`adjust-input-${pId}`).value) || 0);
-        socket.emit('adjust-score', { playerId: pId, adjustment: val });
-        showSuccess('تم خصم النقاط بنجاح');
+        const safe = btn.dataset.safe;
+        const val = parseInt(document.getElementById(`adjust-input-${safe}`).value) || 0;
+        if (val <= 0) { showError('أدخل رقماً موجباً'); return; }
+        socket.emit('adjust-score', { playerId: pId, adjustment: -val });
+        showSuccess(`تم خصم ${val} نقطة`);
       });
     });
   }
