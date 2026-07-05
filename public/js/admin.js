@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle Game Mode Card selection (Individual vs Group)
   const btnModeIndividual = document.getElementById('btn-mode-individual');
   const btnModeGroup = document.getElementById('btn-mode-group');
+  const teamCountContainer = document.getElementById('team-count-container');
 
   if (btnModeIndividual && btnModeGroup) {
     btnModeIndividual.addEventListener('click', () => {
@@ -162,6 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnModeGroup.style.borderColor = 'var(--glass-border)';
       btnModeGroup.style.background = 'rgba(255,255,255,0.02)';
       btnModeGroup.style.boxShadow = 'none';
+      if (teamCountContainer) teamCountContainer.style.display = 'none';
     });
 
     btnModeGroup.addEventListener('click', () => {
@@ -173,8 +175,26 @@ document.addEventListener('DOMContentLoaded', () => {
       btnModeIndividual.style.borderColor = 'var(--glass-border)';
       btnModeIndividual.style.background = 'rgba(255,255,255,0.02)';
       btnModeIndividual.style.boxShadow = 'none';
+      if (teamCountContainer) teamCountContainer.style.display = 'block';
     });
   }
+
+  // Handle team count radio button styles dynamically
+  const teamCountRadios = document.querySelectorAll('input[name="team-count"]');
+  teamCountRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      teamCountRadios.forEach(r => {
+        const parent = r.closest('label');
+        if (r.checked) {
+          parent.style.borderColor = 'var(--primary-accent)';
+          parent.style.background = 'rgba(112, 161, 255, 0.15)';
+        } else {
+          parent.style.borderColor = 'var(--glass-border)';
+          parent.style.background = 'transparent';
+        }
+      });
+    });
+  });
 
   // Handle Dialog Actions
   btnOpenAddDialog.addEventListener('click', () => {
@@ -190,6 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const password = adminPassInput.value.trim();
     const type = gameTypeSelect.value;
     const timer = parseInt(timerSecSelect.value);
+    const selectedTeamCountRadio = document.querySelector('input[name="team-count"]:checked');
+    const teamCount = selectedTeamCountRadio ? parseInt(selectedTeamCountRadio.value) : 4;
 
     if (!password) {
       showError('يرجى إدخال كلمة المرور للمتابعة');
@@ -200,7 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('create-room', {
       type,
       timerDuration: timer,
-      password
+      password,
+      teamCount
     });
   });
 

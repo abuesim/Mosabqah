@@ -65,7 +65,7 @@ io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
   // 1. Create Room (Admin)
-  socket.on('create-room', async ({ type, timerDuration, password }) => {
+  socket.on('create-room', async ({ type, timerDuration, password, teamCount }) => {
     if (password !== ADMIN_PASSWORD) {
       socket.emit('error-msg', 'رمز المرور غير صحيح');
       return;
@@ -75,17 +75,26 @@ io.on('connection', (socket) => {
     try {
       const room = await createRoom(roomCode, type, timerDuration);
       
-      // If team mode, pre-populate 4 standard teams
+      // If team mode, pre-populate specified teams (2, 3, or 4)
       if (type === 'group') {
-        await addPlayer(roomCode + '-red', roomCode, 'الفريق الأحمر', '#ff4757');
-        await addPlayer(roomCode + '-blue', roomCode, 'الفريق الأزرق', '#1e90ff');
-        await addPlayer(roomCode + '-green', roomCode, 'الفريق الأخضر', '#2ed573');
-        await addPlayer(roomCode + '-yellow', roomCode, 'الفريق الأصفر', '#ffa502');
+        const teamsNum = parseInt(teamCount) || 4;
+        
+        if (teamsNum >= 2) {
+          await addPlayer(roomCode + '-red', roomCode, 'الفريق الأحمر', '#ff4757');
+          await addPlayer(roomCode + '-blue', roomCode, 'الفريق الأزرق', '#1e90ff');
+        }
+        if (teamsNum >= 3) {
+          await addPlayer(roomCode + '-green', roomCode, 'الفريق الأخضر', '#2ed573');
+        }
+        if (teamsNum >= 4) {
+          await addPlayer(roomCode + '-yellow', roomCode, 'الفريق الأصفر', '#ffa502');
+        }
+        
         activeTurns[roomCode] = 0; // Starts with Red Team (index 0)
       }
 
       socket.emit('room-created', room);
-      console.log(`Room created: ${roomCode} (${type})`);
+      console.log(`Room created: ${roomCode} (${type}), Teams: ${teamCount || 4}`);
     } catch (err) {
       socket.emit('error-msg', 'حدث خطأ أثناء إنشاء الغرفة');
       console.error(err);

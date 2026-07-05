@@ -52,6 +52,22 @@
           </div>
         </div>
 
+        <!-- Team Count Selection (Only displayed if game-type is group) -->
+        <div id="team-count-container" class="form-group" style="display: none;">
+          <label class="form-label">عدد الفرق المشاركة</label>
+          <div style="display: flex; gap: 15px; margin-top: 8px;">
+            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
+              <input type="radio" name="team-count" value="2" style="margin-left: 6px;"> فريقين (2)
+            </label>
+            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
+              <input type="radio" name="team-count" value="3" style="margin-left: 6px;"> 3 فرق (3)
+            </label>
+            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); cursor: pointer; transition: all 0.3s ease;">
+              <input type="radio" name="team-count" value="4" style="margin-left: 6px;" checked> 4 فرق (4)
+            </label>
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="timer-sec">وقت الإجابة على السؤال (بالثواني)</label>
           <select id="timer-sec" class="form-input" style="background: rgba(0,0,0,0.3); color: white; cursor: pointer;">
