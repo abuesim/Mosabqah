@@ -300,6 +300,9 @@ io.on('connection', (socket) => {
       }
 
       try {
+        // Clear any old session for this player ID in other rooms to prevent PRIMARY KEY/UNIQUE constraint collision
+        await deletePlayer(cleanPlayerId);
+
         const player = await addPlayer(cleanPlayerId, cleanRoomCode, name, color);
         socket.emit('player-joined', { player, room });
         
