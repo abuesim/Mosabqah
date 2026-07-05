@@ -231,15 +231,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Build URL for players to join
     const playerJoinUrl = `${window.location.origin}/player.html?room=${room.id}`;
-    
-    // Generate QR Code using the reliable API
+
+    // Generate QR Code using the reliable API (small icon + large modal version)
     const qrcodeImg = document.getElementById('qrcode');
-    if (qrcodeImg && roomType !== 'group') {
-      qrcodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playerJoinUrl)}`;
+    const qrcodeLarge = document.getElementById('qrcode-large');
+    const qrModalRoomCode = document.getElementById('qr-modal-room-code');
+    if (roomType !== 'group') {
+      if (qrcodeImg) qrcodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(playerJoinUrl)}`;
+      if (qrcodeLarge) qrcodeLarge.src = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(playerJoinUrl)}`;
+      if (qrModalRoomCode) qrModalRoomCode.textContent = room.id;
     }
 
     showScreen('lobby');
   });
+
+  // Wire the QR modal (open/close)
+  const qrModal = document.getElementById('qr-modal');
+  const btnShowQr = document.getElementById('btn-show-qr');
+  const btnCloseQr = document.getElementById('btn-close-qr');
+  if (btnShowQr && qrModal) {
+    btnShowQr.addEventListener('click', () => {
+      try { qrModal.showModal(); } catch (e) { qrModal.setAttribute('open', ''); }
+    });
+  }
+  if (btnCloseQr && qrModal) {
+    btnCloseQr.addEventListener('click', () => qrModal.close());
+  }
+  // Click on the backdrop (outside the panel) closes too
+  if (qrModal) {
+    qrModal.addEventListener('click', (e) => {
+      const rect = qrModal.getBoundingClientRect();
+      const inDialog = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+      if (!inDialog) qrModal.close();
+    });
+  }
 
   // Socket: Question Preparation Countdown
   socket.on('prepare-question', ({ seconds }) => {

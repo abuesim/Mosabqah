@@ -24,23 +24,44 @@
 
     <!-- SCREEN 1: ROOM CODE & LOBBY -->
     <section id="screen-lobby" class="screen active">
-      <div class="admin-grid">
-        
-        <!-- Join instructions and QR -->
-        <div id="qrcode-instructions" class="glass-panel" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px;">
-          <h2 style="font-size: 28px; margin-bottom: 15px;">انضم للتحدي الآن!</h2>
-          <p style="color: var(--text-secondary); font-size: 18px; margin-bottom: 30px;">امسح الرمز بكاميرا الجوال أو ادخل للموقع واكتب الرمز</p>
-          
-          <div style="background: white; padding: 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); margin-bottom: 24px; min-height: 180px; display: flex; align-items: center; justify-content: center;">
-            <img id="qrcode" src="" alt="رابط الانضمام" style="width: 180px; height: 180px; display: block; border: none;">
-          </div>
-          
-          <div style="font-size: 16px; color: var(--text-secondary); margin-bottom: 8px;">رمز الغرفة للدخول:</div>
-          <div id="room-code-display" style="font-size: 64px; font-weight: 800; color: var(--color-yellow); letter-spacing: 4px; line-height: 1;">----</div>
+
+      <!-- Compact room-code strip with a clickable QR icon (opens modal) -->
+      <div id="qrcode-instructions" class="glass-panel" style="margin-bottom: 24px; padding: 24px 30px; display: flex; justify-content: center; align-items: center; gap: 30px; flex-wrap: wrap;">
+        <div style="text-align: center;">
+          <div style="font-size: 15px; color: var(--text-secondary); margin-bottom: 6px;">رمز الغرفة للانضمام:</div>
+          <div id="room-code-display" style="font-size: 56px; font-weight: 800; color: var(--color-yellow); letter-spacing: 4px; line-height: 1;">----</div>
         </div>
 
-        <!-- Connected Players list -->
-        <div class="glass-panel">
+        <button id="btn-show-qr" type="button" title="اضغط لعرض الباركود كبيراً"
+          style="background: white; padding: 10px; border-radius: 12px; border: 2px solid var(--primary-accent); cursor: pointer; box-shadow: 0 4px 15px rgba(112, 161, 255, 0.35); display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.25s ease;">
+          <img id="qrcode" src="" alt="باركود الانضمام" style="width: 80px; height: 80px; display: block; border: none;">
+          <span style="font-size: 11px; color: #333; font-weight: 700;">📱 اضغط للتكبير</span>
+        </button>
+      </div>
+
+      <!-- QR Modal (opened by clicking the icon) -->
+      <dialog id="qr-modal" style="background: transparent; border: none; outline: none; padding: 0; margin: auto; max-width: 90vw;">
+        <div class="glass-panel" style="background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.15); padding: 30px 40px; text-align: center; position: relative; box-shadow: var(--shadow-lg);">
+          <!-- Close (X) button -->
+          <button id="btn-close-qr" type="button" title="إغلاق"
+            style="position: absolute; top: 12px; left: 12px; background: rgba(255,71,87,0.15); border: 1px solid rgba(255,71,87,0.4); color: var(--color-red); width: 40px; height: 40px; border-radius: 50%; font-size: 20px; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+            ✕
+          </button>
+
+          <h2 class="title-gradient" style="font-size: 28px; margin-bottom: 10px;">انضم للتحدي الآن!</h2>
+          <p style="color: var(--text-secondary); font-size: 16px; margin-bottom: 20px;">امسح الرمز بكاميرا جوالك للانضمام مباشرة</p>
+
+          <div style="background: white; padding: 20px; border-radius: 14px; box-shadow: var(--shadow-lg); display: inline-block; margin-bottom: 18px;">
+            <img id="qrcode-large" src="" alt="باركود الانضمام (كبير)" style="width: 360px; height: 360px; max-width: 70vw; display: block; border: none;">
+          </div>
+
+          <div style="font-size: 14px; color: var(--text-secondary);">أو ادخل الموقع واكتب رمز الغرفة:</div>
+          <div id="qr-modal-room-code" style="font-size: 44px; font-weight: 900; color: var(--color-yellow); letter-spacing: 6px; margin-top: 4px;">----</div>
+        </div>
+      </dialog>
+
+      <!-- Connected Players list -->
+      <div class="glass-panel">
           <h3 style="font-size: 22px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
             اللاعبين المتصلين (<span id="players-count">0</span>)
           </h3>
@@ -88,9 +109,8 @@
           <div id="players-container" style="display: flex; flex-wrap: wrap; gap: 12px; max-height: 400px; overflow-y: auto; padding: 5px;">
             <div style="color: var(--text-muted); width: 100%; text-align: center; padding: 40px 0;">بانتظار انضمام أول لاعب...</div>
           </div>
-        </div>
-
       </div>
+
     </section>
 
     <!-- SCREEN 1.5: PREPARATION COUNTDOWN -->
