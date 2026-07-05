@@ -1,5 +1,4 @@
-import sqlite3 from 'sqlite3';
-import { promisify } from 'util';
+import { createClient } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -7,26 +6,49 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Where to store the SQLite file:
-// - In production on Render, mount a Persistent Disk (e.g. at /data) and set DATA_DIR=/data.
-//   The DB survives restarts and redeploys.
-// - Locally (no DATA_DIR set), fall back to the project directory as before.
-const dataDir = process.env.DATA_DIR || __dirname;
-try {
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-} catch (err) {
-  console.error(`Could not create DATA_DIR "${dataDir}":`, err.message);
+// Storage strategy:
+// - Production (Render Free tier): set TURSO_URL + TURSO_AUTH_TOKEN → cloud SQLite that
+//   persists across redeploys. libSQL is a SQLite-compatible protocol.
+// - Local dev / self-hosted with persistent disk: fall back to a file: URL. If DATA_DIR is
+//   set (e.g. mounted disk at /data), store under it; otherwise store in the project dir.
+let client;
+if (process.env.TURSO_URL) {
+  client = createClient({
+    url: process.env.TURSO_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+    intMode: 'number'
+  });
+  console.log('Using Turso cloud database:', process.env.TURSO_URL);
+} else {
+  const dataDir = process.env.DATA_DIR || __dirname;
+  try {
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  } catch (err) {
+    console.error(`Could not create DATA_DIR "${dataDir}":`, err.message);
+  }
+  const dbPath = path.resolve(dataDir, 'database.sqlite');
+  client = createClient({
+    url: `file:${dbPath}`,
+    intMode: 'number'
+  });
+  console.log('Using local SQLite file:', dbPath);
 }
-const dbPath = path.resolve(dataDir, 'database.sqlite');
-const db = new sqlite3.Database(dbPath);
 
-// Promisify database methods for clean async/await
-const dbRun = promisify(db.run.bind(db));
-const dbAll = promisify(db.all.bind(db));
-const dbGet = promisify(db.get.bind(db));
+// libSQL-friendly helpers with the same shape as the previous sqlite3 wrappers
+async function dbRun(sql, args = []) {
+  await client.execute({ sql, args });
+}
+async function dbAll(sql, args = []) {
+  const res = await client.execute({ sql, args });
+  return res.rows;
+}
+async function dbGet(sql, args = []) {
+  const res = await client.execute({ sql, args });
+  return res.rows[0];
+}
 
 export async function initDatabase() {
-  console.log('Initializing SQLite Database at:', dbPath);
+  console.log('Initializing database...');
 
   // Enable foreign keys
   await dbRun('PRAGMA foreign_keys = ON');
@@ -257,15 +279,13 @@ export async function initDatabase() {
       }
     ];
 
-    const stmt = db.prepare(`
-      INSERT INTO questions (question_text, option1, option2, option3, option4, correct_option, difficulty, category)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
     for (const q of defaultQuestions) {
-      stmt.run(q.question_text, q.option1, q.option2, q.option3, q.option4, q.correct_option, q.difficulty, q.category);
+      await dbRun(
+        `INSERT INTO questions (question_text, option1, option2, option3, option4, correct_option, difficulty, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [q.question_text, q.option1, q.option2, q.option3, q.option4, q.correct_option, q.difficulty, q.category]
+      );
     }
-    stmt.finalize();
   }
 }
 
