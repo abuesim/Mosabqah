@@ -150,6 +150,14 @@ document.addEventListener('DOMContentLoaded', () => {
     showError(msg);
   });
 
+  // Socket: Player was removed by admin
+  socket.on('kicked', ({ reason }) => {
+    // Clear persistent playerId so they don't auto-rejoin as the same removed identity
+    try { localStorage.removeItem('mosabqah_player_id'); } catch (e) {}
+    alert(reason || 'تمت إزالتك من الغرفة.');
+    window.location.href = 'index.html';
+  });
+
   // Socket: Joined room successfully
   socket.on('player-joined', ({ player, room }) => {
     currentRoom = room;

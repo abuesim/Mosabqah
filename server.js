@@ -17,6 +17,7 @@ import {
   updatePlayerScore,
   setPlayerActiveStatus,
   setPlayerTeam,
+  deletePlayer,
   getQuestions,
   getQuestion,
   submitAnswer,
@@ -464,6 +465,26 @@ io.on('connection', (socket) => {
     if (!playerId || !teamId) return;
 
     await setPlayerTeam(playerId, teamId);
+    const players = await getPlayers(roomCode);
+    io.to(roomCode).emit('player-list-update', players);
+  });
+
+  // 7c. Remove Player (Admin — hard-delete from the room)
+  socket.on('remove-player', async ({ playerId }) => {
+    const roomCode = socket.roomId;
+    if (!roomCode || socket.role !== 'admin') return;
+    if (!playerId) return;
+
+    // Kick the player's socket(s) out of the room and tell them they were removed
+    const roomSockets = await io.in(roomCode).fetchSockets();
+    for (const s of roomSockets) {
+      if (s.role === 'player' && s.playerId === playerId) {
+        s.emit('kicked', { reason: 'تمت إزالتك من الغرفة بواسطة المقدم' });
+        s.leave(roomCode);
+      }
+    }
+
+    await deletePlayer(playerId);
     const players = await getPlayers(roomCode);
     io.to(roomCode).emit('player-list-update', players);
   });

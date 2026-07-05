@@ -299,6 +299,11 @@ export async function setPlayerTeam(playerId, teamId) {
   await dbRun('UPDATE users SET team_id = ? WHERE id = ?', [teamId, playerId]);
 }
 
+export async function deletePlayer(playerId) {
+  // player_answers has ON DELETE CASCADE on player_id → cleaned automatically
+  await dbRun('DELETE FROM users WHERE id = ?', [playerId]);
+}
+
 export async function getPlayers(roomId) {
   return await dbAll('SELECT * FROM users WHERE room_id = ? ORDER BY score DESC', [roomId]);
 }

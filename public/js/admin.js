@@ -548,7 +548,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="player-dot" style="color: ${dotColor}; background-color: ${dotColor}"></div>
             <span class="player-name">${player.name}</span>
           </div>
-          <span class="player-score" id="score-val-${safeId}" style="font-size: 22px;">${player.score} نقطة</span>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="player-score" id="score-val-${safeId}" style="font-size: 22px;">${player.score} نقطة</span>
+            <button class="btn-remove-player" data-id="${player.id}" data-name="${player.name}"
+              title="حذف اللاعب"
+              style="background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.4); color: var(--color-red); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+              🗑️
+            </button>
+          </div>
         </div>
 
         ${teamPickerHtml}
@@ -578,6 +585,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamId = btn.dataset.team;
         socket.emit('assign-player-team', { playerId: pId, teamId });
         showSuccess(`تم نقل اللاعب إلى فريق ${teamNameFor(teamId)}`);
+      });
+    });
+
+    // Remove player (with confirmation)
+    adminPlayersList.querySelectorAll('.btn-remove-player').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pId = btn.dataset.id;
+        const pName = btn.dataset.name || 'اللاعب';
+        if (!confirm(`هل أنت متأكد من حذف "${pName}" نهائياً من الغرفة؟\nسيتم مسح كل نقاطه وإجاباته.`)) return;
+        socket.emit('remove-player', { playerId: pId });
+        showSuccess(`تم حذف اللاعب "${pName}"`);
       });
     });
 
