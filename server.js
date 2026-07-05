@@ -341,14 +341,19 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('scoreboard-visibility-update', { visible: !!visible, players });
   });
 
-  // 4. Send/Show Question (Admin / Presenter)
+  // 4. Send/Show Question (Admin / Presenter) — real questions require the game to be active
   socket.on('show-question', async ({ questionId }) => {
     const roomCode = socket.roomId;
     if (!roomCode) return;
+    const room = await getRoom(roomCode);
+    if (!room || room.status !== 'active') {
+      socket.emit('error-msg', 'يجب الضغط على "بدء المسابقة" أولاً قبل طرح الأسئلة');
+      return;
+    }
     await performShowQuestion(roomCode, questionId);
   });
 
-  // 4b. Trial question (Admin) — practice round, no scoring
+  // 4b. Trial question (Admin) — practice round, no scoring. Allowed BEFORE the game starts too.
   socket.on('start-trial-question', async () => {
     const roomCode = socket.roomId;
     if (!roomCode || socket.role !== 'admin') return;
@@ -360,6 +365,12 @@ io.on('connection', (socket) => {
   socket.on('admin-random-question', async () => {
     const roomCode = socket.roomId;
     if (!roomCode || socket.role !== 'admin') return;
+
+    const room = await getRoom(roomCode);
+    if (!room || room.status !== 'active') {
+      socket.emit('error-msg', 'يجب الضغط على "بدء المسابقة" أولاً قبل طرح الأسئلة');
+      return;
+    }
 
     const questions = await getQuestions();
     if (questions.length === 0) {

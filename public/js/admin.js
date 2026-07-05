@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let questionsList = [];
   let playersList = [];
   let askedQuestionsSet = new Set();
+  // Real questions can only be thrown once the game is officially started (room.status === 'active').
+  // The trial question is exempt — it's meant to be shown BEFORE the game starts.
+  let gameStarted = false;
 
   function shuffle(arr) {
     const a = [...arr];
@@ -130,9 +133,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const askedProgressBadge = document.getElementById('asked-progress-badge');
   if (btnRandomQuestion) {
     btnRandomQuestion.addEventListener('click', () => {
+      if (!gameStarted) {
+        showError('اضغط "بدء المسابقة ▶️" أولاً لتتمكن من طرح الأسئلة الحقيقية');
+        return;
+      }
       socket.emit('admin-random-question');
       showSuccess('جارٍ اختيار سؤال عشوائي جديد...');
     });
+  }
+
+  // Lock/unlock the real-question UI based on gameStarted state
+  function updateQuestionsLockUI() {
+    const controlBanner = document.getElementById('questions-locked-banner');
+    const questionsBanner = document.getElementById('questions-tab-locked-banner');
+
+    if (controlBanner) controlBanner.style.display = gameStarted ? 'none' : 'block';
+    if (questionsBanner) questionsBanner.style.display = gameStarted ? 'none' : 'block';
+
+    if (btnRandomQuestion) {
+      btnRandomQuestion.disabled = !gameStarted;
+      btnRandomQuestion.style.opacity = gameStarted ? '1' : '0.5';
+      btnRandomQuestion.style.cursor = gameStarted ? 'pointer' : 'not-allowed';
+    }
+
+    // Re-render the pool so each "طرح السؤال" button reflects the new lock state
+    renderQuestionsPool();
   }
 
   // "Manual pick" link goes to the questions tab
@@ -447,7 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
     currentRoom = room;
     dashboardRoomCode.textContent = room.id;
     dashboardRoomType.textContent = room.type === 'individual' ? 'لعب فردي' : 'لعب جماعي';
-    
+
+    gameStarted = (room.status === 'active');
+    updateQuestionsLockUI();
+
     if (room.status === 'active') {
       dashboardRoomStatus.textContent = 'المسابقة جارية 🎮';
       btnStartGame.style.display = 'none';
@@ -501,6 +529,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     showScreen('dashboard');
+  });
+
+  // Socket: Game started (fires for the admin's own click AND for a remote/presenter-triggered
+  // start, since 'game-started' is broadcast to the whole room). Unlocks real-question throwing.
+  socket.on('game-started', () => {
+    gameStarted = true;
+    updateQuestionsLockUI();
   });
 
   // Socket: Password checked
@@ -822,6 +857,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<span style="background: var(--color-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px;">✓ تم عرضه</span>'
         : '';
 
+      // Real questions are locked until the admin presses "بدء المسابقة"
+      const isLocked = !gameStarted && !isAsked;
+      const isDisabled = isAsked || isLocked;
+      const sendLabel = isAsked ? 'تم عرضه' : (isLocked ? '🔒 ابدأ المسابقة أولاً' : 'طرح السؤال 🚀');
+
       card.innerHTML = `
         <div style="flex-grow: 1;">
           <div style="font-weight: bold; margin-bottom: 8px;">${q.question_text}${askedBadge}</div>
@@ -834,8 +874,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-          <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled' : ''} style="font-size: 13px; padding: 8px 16px; ${isAsked ? 'cursor: not-allowed; background: #555;' : ''}">
-            ${isAsked ? 'تم عرضه' : 'طرح السؤال 🚀'}
+          <button class="btn btn-send-q" data-id="${q.id}" ${isDisabled ? 'disabled' : ''} style="font-size: 13px; padding: 8px 16px; ${isDisabled ? 'cursor: not-allowed; background: #555;' : ''}">
+            ${sendLabel}
           </button>
           <button class="btn-delete-q" data-id="${q.id}" data-text="${q.question_text}" title="حذف السؤال نهائياً" style="background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.4); color: var(--color-red); width: 36px; height: 36px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
             🗑️
