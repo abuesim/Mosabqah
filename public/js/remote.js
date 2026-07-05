@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements - Lists
   const remotePlayersList = document.getElementById('remote-players-list');
   const remoteCategoryFilters = document.getElementById('remote-category-filters');
+  const remoteDifficultyFilters = document.getElementById('remote-difficulty-filters');
   const remoteQuestionsPool = document.getElementById('remote-questions-pool');
 
   // Toast Helpers
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let playersList = [];
   let askedQuestionsSet = new Set();
   let activeCategories = new Set();
+  let activeDifficulties = new Set();
 
   // URL Query parameter check (auto-prefill room code)
   const urlParams = new URLSearchParams(window.location.search);
@@ -299,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('questions-list', (list) => {
     questionsList = list;
     renderCategoryFilters();
+    renderDifficultyFilters();
     renderQuestionsPool();
   });
 
@@ -346,11 +349,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function renderDifficultyFilters() {
+    remoteDifficultyFilters.innerHTML = '';
+    const difficulties = Array.from(new Set(questionsList.map(q => q.difficulty || 'medium')))
+      .filter(diff => diff && diff.trim() !== '');
+
+    // All button
+    const btnAll = document.createElement('button');
+    btnAll.textContent = 'الكل 🌐';
+    btnAll.style.cssText = activeDifficulties.size === 0
+      ? 'padding: 5px 10px; font-size: 11px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer;'
+      : 'padding: 5px 10px; font-size: 11px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer;';
+    btnAll.addEventListener('click', () => {
+      activeDifficulties.clear();
+      renderDifficultyFilters();
+      renderQuestionsPool();
+    });
+    remoteDifficultyFilters.appendChild(btnAll);
+
+    // Map difficulty values to user friendly Arabic text
+    const labelsMap = {
+      'easy': 'سهل 🟢',
+      'medium': 'متوسط 🟡',
+      'hard': 'صعب 🔴'
+    };
+
+    difficulties.forEach(diff => {
+      const btn = document.createElement('button');
+      btn.textContent = labelsMap[diff.toLowerCase()] || diff;
+      const isActive = activeDifficulties.has(diff);
+      btn.style.cssText = isActive
+        ? 'padding: 5px 10px; font-size: 11px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer;'
+        : 'padding: 5px 10px; font-size: 11px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer;';
+
+      btn.addEventListener('click', () => {
+        if (activeDifficulties.has(diff)) {
+          activeDifficulties.delete(diff);
+        } else {
+          activeDifficulties.add(diff);
+        }
+        renderDifficultyFilters();
+        renderQuestionsPool();
+      });
+      remoteDifficultyFilters.appendChild(btn);
+    });
+  }
+
   function renderQuestionsPool() {
     remoteQuestionsPool.innerHTML = '';
     let filteredList = questionsList;
     if (activeCategories.size > 0) {
       filteredList = questionsList.filter(q => activeCategories.has(q.category || 'عام'));
+    }
+    if (activeDifficulties.size > 0) {
+      filteredList = filteredList.filter(q => activeDifficulties.has(q.difficulty || 'medium'));
     }
 
     if (filteredList.length === 0) {

@@ -550,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
     questionsList = shuffle(list);
     if (tabQuestionsCount) tabQuestionsCount.textContent = list.length;
     renderCategoryFilters();
+    renderDifficultyFilters();
     renderQuestionsPool();
     refreshProgressBadge();
   });
@@ -604,8 +605,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Categories filtering state
+  // Categories and Difficulty filtering state
   let activeCategories = new Set();
+  let activeDifficulties = new Set();
 
   function renderCategoryFilters() {
     const container = document.getElementById('category-filters-container');
@@ -655,14 +657,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function renderDifficultyFilters() {
+    const container = document.getElementById('difficulty-filters-container');
+    if (!container) return;
+
+    // Get unique difficulties from questionsList
+    const difficulties = Array.from(new Set(questionsList.map(q => q.difficulty || 'medium')))
+      .filter(diff => diff && diff.trim() !== '');
+
+    container.innerHTML = '';
+
+    // Create 'All' button
+    const btnAll = document.createElement('button');
+    btnAll.textContent = 'الكل 🌐';
+    btnAll.className = `filter-btn ${activeDifficulties.size === 0 ? 'active' : ''}`;
+    btnAll.style.cssText = activeDifficulties.size === 0
+      ? 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer; transition: all 0.2s;'
+      : 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;';
+
+    btnAll.addEventListener('click', () => {
+      activeDifficulties.clear();
+      renderDifficultyFilters();
+      renderQuestionsPool();
+    });
+    container.appendChild(btnAll);
+
+    // Map difficulty values to user friendly Arabic text
+    const labelsMap = {
+      'easy': 'سهل 🟢',
+      'medium': 'متوسط 🟡',
+      'hard': 'صعب 🔴'
+    };
+
+    difficulties.forEach(diff => {
+      const btn = document.createElement('button');
+      btn.textContent = labelsMap[diff.toLowerCase()] || diff;
+      const isActive = activeDifficulties.has(diff);
+      btn.className = `filter-btn ${isActive ? 'active' : ''}`;
+      btn.style.cssText = isActive
+        ? 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer; transition: all 0.2s;'
+        : 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;';
+
+      btn.addEventListener('click', () => {
+        if (activeDifficulties.has(diff)) {
+          activeDifficulties.delete(diff);
+        } else {
+          activeDifficulties.add(diff);
+        }
+        renderDifficultyFilters();
+        renderQuestionsPool();
+      });
+      container.appendChild(btn);
+    });
+  }
+
   // Render Questions list in panel
   function renderQuestionsPool() {
     questionsPool.innerHTML = '';
     
-    // Filter questions list by activeCategories
+    // Filter questions list by activeCategories & activeDifficulties
     let filteredList = questionsList;
     if (activeCategories.size > 0) {
       filteredList = questionsList.filter(q => activeCategories.has(q.category || 'عام'));
+    }
+    if (activeDifficulties.size > 0) {
+      filteredList = filteredList.filter(q => activeDifficulties.has(q.difficulty || 'medium'));
     }
 
     if (filteredList.length === 0) {
