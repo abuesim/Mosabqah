@@ -1,4 +1,4 @@
-# 📄 دليل مشروع: مُسَابَقَة عصومي (الاصدار 1.5)
+# 📄 دليل مشروع: مُسَابَقَة عصومي (الاصدار 1.6)
 
 ---
 
@@ -65,7 +65,7 @@
 
 ### بنية قاعدة البيانات (Database Schema)
 - جدول `rooms`: id, type, status, current_question_id, question_status, timer_duration, question_start_time.
-- جدول `users` (اللاعبين والفرق): id, name, color, score, is_active.
+- جدول `users` (اللاعبين والفرق): id, name, color, score, is_active, team_id (لدعم فرق الألوان في اللعب الفردي).
 - جدول `questions`: id, question_text, option1, option2, option3, option4, correct_option, difficulty, category. (ملاحظة: في الأسئلة ذات الخيارين أو الثلاثة، تُخزَّن الخيارات غير المستخدمة كنص فارغ `""` وتُخفى تلقائياً من واجهات العرض واللاعب.)
 - جدول `player_answers`: id, room_id, player_id, question_id, chosen_option, is_correct, answered_in_seconds.
 
