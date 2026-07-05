@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Question Received
-  socket.on('question-shown', ({ question, timerDuration, isTrial }) => {
+  socket.on('question-shown', ({ question, timerDuration, isTrial, askedCount, totalQuestions }) => {
     currentQuestion = question;
 
     // Fill text and options
@@ -220,6 +220,20 @@ document.addEventListener('DOMContentLoaded', () => {
       questionCategory.textContent = question.category === 'islamic' ? 'إسلامي' :
                                      question.category === 'riddles' ? 'لغز' :
                                      question.category === 'science' ? 'علوم' : 'عام';
+    }
+
+    // Progress badge (hidden during trial)
+    const progressBadge = document.getElementById('question-progress');
+    const progressNum = document.getElementById('question-progress-num');
+    const progressTotal = document.getElementById('question-progress-total');
+    if (progressBadge && progressNum && progressTotal) {
+      if (isTrial || !askedCount) {
+        progressBadge.style.display = 'none';
+      } else {
+        progressBadge.style.display = 'inline-block';
+        progressNum.textContent = askedCount;
+        progressTotal.textContent = totalQuestions || askedCount;
+      }
     }
     questionText.textContent = question.question_text;
     

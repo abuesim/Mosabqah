@@ -14,7 +14,7 @@
     <header class="navbar" style="padding-bottom: 20px;">
       <div class="logo" style="font-size: 32px;">
         <span>🏆</span>
-        <span class="title-gradient">مُسَابَقَة عصومي <small style="font-size: 14px; opacity: 0.7;">الاصدار 1.6</small></span>
+        <span class="title-gradient">مُسَابَقَة عصومي <small style="font-size: 14px; opacity: 0.7;">الاصدار 1.7</small></span>
       </div>
       <div id="sound-control" style="cursor: pointer; font-size: 24px;" title="كتم/تشغيل الصوت">🔊</div>
     </header>
@@ -102,8 +102,11 @@
     <!-- SCREEN 2: ACTIVE QUESTION -->
     <section id="screen-question" class="screen">
       <div class="glass-panel" style="padding: 40px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 12px; flex-wrap: wrap;">
           <span id="q-category" style="background: rgba(165, 94, 234, 0.2); color: var(--primary-purple); padding: 6px 16px; border-radius: 30px; font-size: 16px; font-weight: 700;">إسلامي</span>
+          <span id="q-progress" style="display: none; background: rgba(46, 213, 115, 0.15); border: 1px solid rgba(46, 213, 115, 0.4); color: var(--color-green); padding: 6px 18px; border-radius: 30px; font-size: 18px; font-weight: 800;">
+            📊 السؤال <span id="q-progress-num">1</span> / <span id="q-progress-total">10</span>
+          </span>
           <div style="font-size: 18px; font-weight: bold; color: var(--text-secondary);">
             تمت الإجابة: <span id="answered-count" style="color: var(--color-yellow); font-size: 24px;">0</span>
           </div>

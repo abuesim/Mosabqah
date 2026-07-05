@@ -284,6 +284,26 @@ io.on('connection', (socket) => {
     await performShowQuestion(roomCode, 0, { isTrial: true });
   });
 
+  // 4c. Random unasked question (Admin) — one-click "throw a random question"
+  socket.on('admin-random-question', async () => {
+    const roomCode = socket.roomId;
+    if (!roomCode || socket.role !== 'admin') return;
+
+    const questions = await getQuestions();
+    if (questions.length === 0) {
+      socket.emit('error-msg', 'لا توجد أسئلة في البنك');
+      return;
+    }
+    if (!askedQuestions[roomCode]) askedQuestions[roomCode] = new Set();
+    const remaining = questions.filter(q => !askedQuestions[roomCode].has(q.id));
+    if (remaining.length === 0) {
+      io.to(roomCode).emit('no-more-questions');
+      return;
+    }
+    const nextQ = remaining[Math.floor(Math.random() * remaining.length)];
+    await performShowQuestion(roomCode, nextQ.id);
+  });
+
   // 5. Submit Answer (Player)
   socket.on('submit-answer', async ({ questionId, chosenOption }) => {
     const roomCode = socket.roomId;
@@ -694,11 +714,18 @@ io.on('connection', (socket) => {
         difficulty: question.difficulty
       };
 
+      // Compute progress counter (trial doesn't count toward the asked total)
+      const allQuestions = await getQuestions();
+      const askedCount = (askedQuestions[roomCode] && !trialMode[roomCode]) ? askedQuestions[roomCode].size : 0;
+      const totalQuestions = allQuestions.length;
+
       // Broadcast question to all in the room
       io.to(roomCode).emit('question-shown', {
         question: playerQuestion,
         timerDuration: freshRoom.timer_duration,
-        isTrial: !!trialMode[roomCode]
+        isTrial: !!trialMode[roomCode],
+        askedCount,
+        totalQuestions
       });
 
       // Set server-side fallback timer to mark time-up automatically

@@ -87,8 +87,11 @@
     <!-- SCREEN 3: ANSWER QUESTION -->
     <section id="screen-question" class="screen">
       <div class="glass-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
           <span id="question-category" style="background: rgba(112, 161, 255, 0.15); color: var(--primary-accent); padding: 4px 12px; border-radius: 30px; font-size: 13px; font-weight: bold;">عام</span>
+          <span id="question-progress" style="display: none; background: rgba(46, 213, 115, 0.12); border: 1px solid rgba(46, 213, 115, 0.35); color: var(--color-green); padding: 4px 12px; border-radius: 30px; font-size: 13px; font-weight: 800;">
+            📊 السؤال <span id="question-progress-num">1</span> / <span id="question-progress-total">10</span>
+          </span>
           <div id="player-score-hud" style="background: rgba(255, 165, 0, 0.12); border: 1px solid rgba(255, 165, 0, 0.4); color: var(--color-yellow); padding: 4px 12px; border-radius: 30px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 0 10px rgba(255, 165, 0, 0.15);">
             ⭐ <span id="player-score-val">0</span> نقطة
           </div>

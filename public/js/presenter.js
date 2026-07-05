@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Socket: Question shown on TV
-  socket.on('question-shown', ({ question, timerDuration, isTrial }) => {
+  socket.on('question-shown', ({ question, timerDuration, isTrial, askedCount, totalQuestions }) => {
     currentQuestionStatus = 'showing';
     if (isTrial) {
       qCategory.textContent = '🎯 سؤال تجريبي';
@@ -542,6 +542,20 @@ document.addEventListener('DOMContentLoaded', () => {
       qCategory.textContent = question.category === 'islamic' ? 'إسلامي' :
                                question.category === 'riddles' ? 'لغز' :
                                question.category === 'science' ? 'علوم' : 'عام';
+    }
+
+    // Progress badge (hidden during trial)
+    const qProgress = document.getElementById('q-progress');
+    const qProgressNum = document.getElementById('q-progress-num');
+    const qProgressTotal = document.getElementById('q-progress-total');
+    if (qProgress && qProgressNum && qProgressTotal) {
+      if (isTrial || !askedCount) {
+        qProgress.style.display = 'none';
+      } else {
+        qProgress.style.display = 'inline-block';
+        qProgressNum.textContent = askedCount;
+        qProgressTotal.textContent = totalQuestions || askedCount;
+      }
     }
     qText.textContent = question.question_text;
     

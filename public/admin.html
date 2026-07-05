@@ -14,7 +14,7 @@
     <header class="navbar">
       <div class="logo">
         <span>⚙️</span>
-        <span class="title-gradient">لوحة المقدم - مُسَابَقَة عصومي <small style="font-size: 13px; opacity: 0.7;">الاصدار 1.6</small></span>
+        <span class="title-gradient">لوحة المقدم - مُسَابَقَة عصومي <small style="font-size: 13px; opacity: 0.7;">الاصدار 1.7</small></span>
       </div>
       <a href="index.html" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px;">الرئيسية 🏠</a>
     </header>
@@ -125,6 +125,27 @@
 
       <!-- TAB: CONTROL -->
       <div class="admin-tab-content" data-tab="control">
+
+        <!-- Quick actions: random pick + trial -->
+        <div class="glass-panel" style="margin-bottom: 20px; padding: 20px 24px; border-color: rgba(46, 213, 115, 0.35); background: linear-gradient(135deg, rgba(46, 213, 115, 0.08), rgba(112, 161, 255, 0.05));">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <h3 style="font-size: 18px; margin-bottom: 4px; color: var(--color-green);">🎲 طرح سريع للأسئلة</h3>
+              <div style="font-size: 12px; color: var(--text-secondary);">اضغط "سؤال عشوائي" لطرح سؤال جديد لم يُطرح من قبل، أو اذهب لتبويب "الأسئلة" لاختيار سؤال بنفسك.</div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">
+                الأسئلة المطروحة: <strong id="asked-progress-badge" style="color: var(--color-yellow); font-size: 16px;">0 / 0</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="btn-random-question" class="btn" style="background: linear-gradient(135deg, var(--color-green), #1abc55); padding: 12px 22px; font-size: 15px; font-weight: 800; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.3);">
+                🎲 سؤال عشوائي
+              </button>
+              <a href="#" id="link-goto-questions-tab" class="btn btn-secondary" style="padding: 12px 18px; font-size: 14px;">
+                📚 اختيار يدوي
+              </a>
+            </div>
+          </div>
+        </div>
 
         <!-- Trial Question card (shown before real game starts) -->
         <div id="trial-panel" class="glass-panel" style="margin-bottom: 20px; padding: 18px 24px; border-color: rgba(255, 165, 2, 0.4); background: rgba(255, 165, 2, 0.05);">

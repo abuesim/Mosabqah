@@ -121,6 +121,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Random question button (one-click, non-repeating)
+  const btnRandomQuestion = document.getElementById('btn-random-question');
+  const askedProgressBadge = document.getElementById('asked-progress-badge');
+  if (btnRandomQuestion) {
+    btnRandomQuestion.addEventListener('click', () => {
+      socket.emit('admin-random-question');
+      showSuccess('جارٍ اختيار سؤال عشوائي جديد...');
+    });
+  }
+
+  // "Manual pick" link goes to the questions tab
+  const linkGotoQuestionsTab = document.getElementById('link-goto-questions-tab');
+  if (linkGotoQuestionsTab) {
+    linkGotoQuestionsTab.addEventListener('click', (e) => {
+      e.preventDefault();
+      activateTab('questions');
+    });
+  }
+
+  function refreshProgressBadge() {
+    if (!askedProgressBadge) return;
+    const asked = askedQuestionsSet ? askedQuestionsSet.size : 0;
+    const total = questionsList ? questionsList.length : 0;
+    askedProgressBadge.textContent = `${asked} / ${total}`;
+  }
+
   // Helper: Switch screens
   function showScreen(screenId) {
     Object.keys(screens).forEach(key => {
@@ -315,12 +341,14 @@ document.addEventListener('DOMContentLoaded', () => {
     questionsList = shuffle(list);
     if (tabQuestionsCount) tabQuestionsCount.textContent = list.length;
     renderQuestionsPool();
+    refreshProgressBadge();
   });
 
   // Socket: Asked questions update (mark used questions in the pool)
   socket.on('asked-questions-update', (askedIds) => {
     askedQuestionsSet = new Set((askedIds || []).map(id => parseInt(id)));
     renderQuestionsPool();
+    refreshProgressBadge();
   });
 
   // Socket: Players list update
