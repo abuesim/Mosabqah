@@ -14,7 +14,7 @@
     <header class="navbar">
       <div class="logo">
         <span>⚙️</span>
-        <span class="title-gradient">لوحة المقدم - مُسَابَقَة عصومي <small style="font-size: 13px; opacity: 0.7;">الاصدار 1.8</small></span>
+        <span class="title-gradient">لوحة المقدم - مُسَابَقَة عصومي <small style="font-size: 13px; opacity: 0.7;">الاصدار 1.9</small></span>
       </div>
       <a href="index.html" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px;">الرئيسية 🏠</a>
     </header>
@@ -30,67 +30,96 @@
       <div class="glass-panel" style="max-width: 550px; margin: 40px auto;">
         <h2 style="text-align: center; margin-bottom: 24px;" class="title-gradient">إعداد غرفة مسابقة جديدة</h2>
         
-        <div class="form-group">
-          <label class="form-label" for="admin-pass">كلمة مرور لوحة التحكم</label>
-          <input type="password" id="admin-pass" class="form-input" placeholder="ادخل كلمة المرور (الافتراضية: 123456)" required>
+        <!-- Step 1: Authentication -->
+        <div id="setup-step-1">
+          <div class="form-group">
+            <label class="form-label" for="admin-pass">كلمة مرور لوحة التحكم</label>
+            <input type="password" id="admin-pass" class="form-input" placeholder="ادخل كلمة المرور (الافتراضية: 123456)" required>
+          </div>
+          <button id="btn-auth-admin" class="btn" style="width: 100%; margin-top: 15px; font-size: 16px;">دخول لوحة التحكم 🔑</button>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="room-name-input">اسم المسابقة (مثلاً: تحدي الأربعاء)</label>
-          <input type="text" id="room-name-input" class="form-input" placeholder="ادخل اسم المسابقة (اختياري)">
-        </div>
+        <!-- Step 2: Configuration (Hidden initially) -->
+        <div id="setup-step-2" style="display: none;">
+          <div class="form-group">
+            <label class="form-label" for="room-name-input">اسم المسابقة (مثلاً: تحدي الأربعاء)</label>
+            <input type="text" id="room-name-input" class="form-input" placeholder="ادخل اسم المسابقة (اختياري)">
+          </div>
 
-        <div class="form-group">
-          <label class="form-label" for="room-code-input">رمز الغرفة الثابت (أرقام فقط)</label>
-          <input type="number" id="room-code-input" class="form-input" placeholder="ادخل رمز الغرفة الثابت (مثلاً: 1234 - اختياري)">
-        </div>
+          <div class="form-group">
+            <label class="form-label" for="room-code-input" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>رمز الغرفة الثابت (أرقام فقط)</span>
+              <button type="button" id="btn-generate-code" style="background: rgba(112, 161, 255, 0.15); color: var(--primary-accent); border: 1px solid var(--primary-accent); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; cursor: pointer; transition: all 0.2s ease;">توليد عشوائي 🎲</button>
+            </label>
+            <input type="number" id="room-code-input" class="form-input" placeholder="مثلاً: 1234 (اختياري)">
+          </div>
 
-        <div class="form-group">
-          <label class="form-label">نوع اللعب</label>
-          <input type="hidden" id="game-type" value="individual">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px;">
-            <div id="btn-mode-individual" class="mode-card" style="cursor: pointer; text-align: center; padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); box-shadow: 0 0 15px rgba(112, 161, 255, 0.2); transition: all 0.3s ease;">
-              <div style="font-size: 32px; margin-bottom: 8px;">📱</div>
-              <div style="font-weight: bold; font-size: 16px;">لعب فردي</div>
-              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">تفاعل بالهواتف ونقاط تلقائية</div>
-            </div>
-            <div id="btn-mode-group" class="mode-card" style="cursor: pointer; text-align: center; padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--glass-border); background: rgba(255,255,255,0.02); transition: all 0.3s ease;">
-              <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
-              <div style="font-weight: bold; font-size: 16px;">لعب جماعي</div>
-              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">تحدي شفهي ونقاط يدوية للفرق</div>
+          <div class="form-group">
+            <label class="form-label">نوع اللعب</label>
+            <input type="hidden" id="game-type" value="individual">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px;">
+              <div id="btn-mode-individual" class="mode-card" style="cursor: pointer; text-align: center; padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); box-shadow: 0 0 15px rgba(112, 161, 255, 0.2); transition: all 0.3s ease;">
+                <div style="font-size: 32px; margin-bottom: 8px;">📱</div>
+                <div style="font-weight: bold; font-size: 16px;">لعب فردي</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">تفاعل بالهواتف ونقاط تلقائية</div>
+              </div>
+              <div id="btn-mode-group" class="mode-card" style="cursor: pointer; text-align: center; padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--glass-border); background: rgba(255,255,255,0.02); transition: all 0.3s ease;">
+                <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
+                <div style="font-weight: bold; font-size: 16px;">لعب جماعي</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">تحدي شفهي ونقاط يدوية للفرق</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Team Count Selection (Only displayed if game-type is group) -->
-        <div id="team-count-container" class="form-group" style="display: none;">
-          <label class="form-label">عدد الفرق المشاركة</label>
-          <div style="display: flex; gap: 15px; margin-top: 8px;">
-            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
-              <input type="radio" name="team-count" value="2" style="margin-left: 6px;"> فريقين (2)
-            </label>
-            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
-              <input type="radio" name="team-count" value="3" style="margin-left: 6px;"> 3 فرق (3)
-            </label>
-            <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); cursor: pointer; transition: all 0.3s ease;">
-              <input type="radio" name="team-count" value="4" style="margin-left: 6px;" checked> 4 فرق (4)
-            </label>
+          <!-- Team Count Selection (Only displayed if game-type is group) -->
+          <div id="team-count-container" class="form-group" style="display: none;">
+            <label class="form-label">عدد الفرق المشاركة</label>
+            <div style="display: flex; gap: 15px; margin-top: 8px;">
+              <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
+                <input type="radio" name="team-count" value="2" style="margin-left: 6px;"> فريقين (2)
+              </label>
+              <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--glass-border); cursor: pointer; transition: all 0.3s ease;">
+                <input type="radio" name="team-count" value="3" style="margin-left: 6px;"> 3 فرق (3)
+              </label>
+              <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); cursor: pointer; transition: all 0.3s ease;">
+                <input type="radio" name="team-count" value="4" style="margin-left: 6px;" checked> 4 فرق (4)
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label class="form-label" for="timer-sec">وقت الإجابة على السؤال (بالثواني)</label>
-          <select id="timer-sec" class="form-input" style="background: rgba(0,0,0,0.3); color: white; cursor: pointer;">
-            <option value="20">20 ثانية</option>
-            <option value="30" selected>30 ثانية</option>
-            <option value="45">45 ثانية</option>
-            <option value="60">60 ثانية</option>
-          </select>
-        </div>
+          <div class="form-group">
+            <label class="form-label" style="text-align: center; display: block; margin-bottom: 12px;">وقت الإجابة على السؤال (بالثواني)</label>
+            <input type="hidden" id="timer-sec" value="30">
+            <div style="display: flex; gap: 15px; justify-content: center; margin-top: 8px;">
+              <label class="timer-option-label" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; background: rgba(255,255,255,0.02);">
+                <input type="radio" name="timer-sec-radio" value="20" style="display: none;">
+                <span style="font-weight: bold; font-size: 16px;">20</span>
+                <span style="font-size: 9px; color: var(--text-secondary); line-height: 1;">ثانية</span>
+              </label>
+              <label class="timer-option-label active" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--primary-accent); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; background: rgba(112, 161, 255, 0.15); box-shadow: 0 0 10px rgba(112, 161, 255, 0.2);">
+                <input type="radio" name="timer-sec-radio" value="30" style="display: none;" checked>
+                <span style="font-weight: bold; font-size: 16px;">30</span>
+                <span style="font-size: 9px; color: var(--text-secondary); line-height: 1;">ثانية</span>
+              </label>
+              <label class="timer-option-label" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; background: rgba(255,255,255,0.02);">
+                <input type="radio" name="timer-sec-radio" value="45" style="display: none;">
+                <span style="font-weight: bold; font-size: 16px;">45</span>
+                <span style="font-size: 9px; color: var(--text-secondary); line-height: 1;">ثانية</span>
+              </label>
+              <label class="timer-option-label" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; background: rgba(255,255,255,0.02);">
+                <input type="radio" name="timer-sec-radio" value="60" style="display: none;">
+                <span style="font-weight: bold; font-size: 16px;">60</span>
+                <span style="font-size: 9px; color: var(--text-secondary); line-height: 1;">ثانية</span>
+              </label>
+            </div>
+          </div>
 
-        <button id="btn-create-room" class="btn" style="width: 100%; margin-top: 15px; font-size: 18px; padding: 14px;">
-          إنشاء غرفة جديدة 🌟
-        </button>
+          <button id="btn-create-room" class="btn" style="width: 100%; margin-top: 25px; font-size: 18px; padding: 14px;">
+            إنشاء غرفة جديدة 🌟
+          </button>
+          
+          <button type="button" id="btn-back-to-auth" class="btn btn-secondary" style="width: 100%; margin-top: 15px; padding: 10px; font-size: 13px;">تغيير كلمة المرور ↩️</button>
+        </div>
       </div>
     </section>
 
@@ -218,6 +247,11 @@
               </button>
               <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
             </div>
+          </div>
+
+          <!-- Category Quick Filters -->
+          <div id="category-filters-container" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px dashed var(--glass-border);">
+            <!-- Dynamic Category Buttons will be injected here -->
           </div>
 
           <div id="questions-pool" style="display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow-y: auto; padding-left: 5px;">

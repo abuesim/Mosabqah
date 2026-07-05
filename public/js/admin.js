@@ -292,6 +292,75 @@ document.addEventListener('DOMContentLoaded', () => {
     dialogAddQuestion.close();
   });
 
+  // Auth step logic and circular timer handlers
+  const btnAuthAdmin = document.getElementById('btn-auth-admin');
+  const btnBackToAuth = document.getElementById('btn-back-to-auth');
+  const btnGenerateCode = document.getElementById('btn-generate-code');
+  const timerOptionLabels = document.querySelectorAll('.timer-option-label');
+  const timerSecHidden = document.getElementById('timer-sec');
+
+  if (btnAuthAdmin) {
+    btnAuthAdmin.addEventListener('click', () => {
+      const password = adminPassInput.value.trim();
+      if (!password) {
+        showError('يرجى إدخال كلمة المرور للمتابعة');
+        return;
+      }
+      socket.emit('check-password', { password });
+    });
+  }
+
+  if (adminPassInput) {
+    adminPassInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (btnAuthAdmin) btnAuthAdmin.click();
+      }
+    });
+  }
+
+  if (btnBackToAuth) {
+    btnBackToAuth.addEventListener('click', () => {
+      const setupStep1 = document.getElementById('setup-step-1');
+      const setupStep2 = document.getElementById('setup-step-2');
+      if (setupStep2) setupStep2.style.display = 'none';
+      if (setupStep1) setupStep1.style.display = 'block';
+      adminPassword = '';
+      adminPassInput.value = '';
+      setTimeout(() => adminPassInput.focus(), 100);
+    });
+  }
+
+  if (btnGenerateCode && roomCodeInput) {
+    btnGenerateCode.addEventListener('click', () => {
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      roomCodeInput.value = code;
+    });
+  }
+
+  if (timerOptionLabels && timerSecHidden) {
+    timerOptionLabels.forEach(label => {
+      label.addEventListener('click', () => {
+        timerOptionLabels.forEach(l => {
+          l.classList.remove('active');
+          l.style.borderColor = 'var(--glass-border)';
+          l.style.background = 'rgba(255,255,255,0.02)';
+          l.style.boxShadow = 'none';
+        });
+        label.classList.add('active');
+        label.style.borderColor = 'var(--primary-accent)';
+        label.style.background = 'rgba(112, 161, 255, 0.15)';
+        label.style.boxShadow = '0 0 10px rgba(112, 161, 255, 0.2)';
+        
+        const radio = label.querySelector('input[type="radio"]');
+        if (radio) {
+          radio.checked = true;
+          timerSecHidden.value = radio.value;
+        }
+      });
+    });
+  }
+
   // 1. Create Room submission
   btnCreateRoom.addEventListener('click', () => {
     const password = adminPassInput.value.trim();
@@ -347,10 +416,96 @@ document.addEventListener('DOMContentLoaded', () => {
     showScreen('dashboard');
   });
 
+  // Socket: Password checked
+  socket.on('password-checked', ({ success }) => {
+    if (success) {
+      adminPassword = adminPassInput.value.trim();
+      const setupStep1 = document.getElementById('setup-step-1');
+      const setupStep2 = document.getElementById('setup-step-2');
+      if (setupStep1) setupStep1.style.display = 'none';
+      if (setupStep2) setupStep2.style.display = 'block';
+    } else {
+      showError('رمز المرور للوحة التحكم غير صحيح');
+    }
+  });
+
+  // Socket: Sync current active question (on reload/join)
+  socket.on('sync-question', ({ question, questionStatus, answeredCount: ansCount }) => {
+    if (activeQuestionNone) activeQuestionNone.style.display = 'none';
+    if (activeQuestionDetails) activeQuestionDetails.style.display = 'block';
+    if (activeQText) activeQText.textContent = question.question_text;
+    if (activeQAnswers) activeQAnswers.textContent = ansCount;
+
+    if (activeQStatus) {
+      if (questionStatus === 'showing') {
+        activeQStatus.textContent = 'معروض ويستقبل الإجابات ⏳';
+        activeQStatus.style.color = 'var(--primary-accent)';
+        if (btnRevealAnswer) {
+          btnRevealAnswer.disabled = false;
+          btnRevealAnswer.style.opacity = '1';
+        }
+      } else if (questionStatus === 'revealed' || questionStatus === 'time_up') {
+        activeQStatus.textContent = questionStatus === 'revealed' ? `تم كشف الإجابة: (${question['option' + question.correct_option]}) ✅` : 'انتهى الوقت المحدد للإجابة! ⌛';
+        activeQStatus.style.color = questionStatus === 'revealed' ? 'var(--color-green)' : 'var(--color-red)';
+        if (btnRevealAnswer) {
+          btnRevealAnswer.disabled = true;
+          btnRevealAnswer.style.opacity = '0.5';
+        }
+      }
+    }
+  });
+
+  // Socket: Real question shown
+  socket.on('question-shown', ({ question, isTrial }) => {
+    if (activeQuestionNone) activeQuestionNone.style.display = 'none';
+    if (activeQuestionDetails) activeQuestionDetails.style.display = 'block';
+    if (activeQText) activeQText.textContent = question.question_text;
+    if (activeQStatus) {
+      activeQStatus.textContent = isTrial ? 'معروض ويستقبل الإجابات (تجريبي) 🎯' : 'معروض ويستقبل الإجابات ⏳';
+      activeQStatus.style.color = isTrial ? 'var(--color-yellow)' : 'var(--primary-accent)';
+    }
+    if (activeQAnswers) activeQAnswers.textContent = '0';
+    if (btnRevealAnswer) {
+      btnRevealAnswer.disabled = false;
+      btnRevealAnswer.style.opacity = '1';
+    }
+    if (trialBadge) trialBadge.style.display = isTrial ? 'block' : 'none';
+  });
+
+  // Socket: Answered count update
+  socket.on('player-answered-count', (count) => {
+    if (activeQAnswers) activeQAnswers.textContent = count;
+  });
+
+  // Socket: Question revealed
+  socket.on('presenter-reveal', ({ correctOption, correctText }) => {
+    if (activeQStatus) {
+      activeQStatus.textContent = `تم كشف الإجابة: (${correctText}) ✅`;
+      activeQStatus.style.color = 'var(--color-green)';
+    }
+    if (btnRevealAnswer) {
+      btnRevealAnswer.disabled = true;
+      btnRevealAnswer.style.opacity = '0.5';
+    }
+  });
+
+  // Socket: Timer expired
+  socket.on('timer-expired', () => {
+    if (activeQStatus) {
+      activeQStatus.textContent = 'انتهى الوقت المحدد للإجابة! ⌛';
+      activeQStatus.style.color = 'var(--color-red)';
+    }
+    if (btnRevealAnswer) {
+      btnRevealAnswer.disabled = true;
+      btnRevealAnswer.style.opacity = '0.5';
+    }
+  });
+
   // Socket: Questions pool received (shuffle so admin sees random order 1st, 10th, 15th, 3rd...)
   socket.on('questions-list', (list) => {
     questionsList = shuffle(list);
     if (tabQuestionsCount) tabQuestionsCount.textContent = list.length;
+    renderCategoryFilters();
     renderQuestionsPool();
     refreshProgressBadge();
   });
@@ -405,17 +560,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Categories filtering state
+  let activeCategories = new Set();
+
+  function renderCategoryFilters() {
+    const container = document.getElementById('category-filters-container');
+    if (!container) return;
+
+    // Get unique categories from questionsList
+    const categories = Array.from(new Set(questionsList.map(q => q.category || 'عام')))
+      .filter(cat => cat && cat.trim() !== '');
+
+    container.innerHTML = '';
+
+    // Create 'All' button
+    const btnAll = document.createElement('button');
+    btnAll.textContent = 'الكل 🌐';
+    btnAll.className = `filter-btn ${activeCategories.size === 0 ? 'active' : ''}`;
+    btnAll.style.cssText = activeCategories.size === 0
+      ? 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer; transition: all 0.2s;'
+      : 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;';
+
+    btnAll.addEventListener('click', () => {
+      activeCategories.clear();
+      renderCategoryFilters();
+      renderQuestionsPool();
+    });
+    container.appendChild(btnAll);
+
+    // Create category buttons
+    categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.textContent = cat;
+      const isActive = activeCategories.has(cat);
+      btn.className = `filter-btn ${isActive ? 'active' : ''}`;
+      btn.style.cssText = isActive
+        ? 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--primary-accent); background: rgba(112, 161, 255, 0.15); color: white; cursor: pointer; transition: all 0.2s;'
+        : 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;';
+
+      btn.addEventListener('click', () => {
+        if (activeCategories.has(cat)) {
+          activeCategories.delete(cat);
+        } else {
+          activeCategories.add(cat);
+        }
+        renderCategoryFilters();
+        renderQuestionsPool();
+      });
+      container.appendChild(btn);
+    });
+  }
+
   // Render Questions list in panel
   function renderQuestionsPool() {
     questionsPool.innerHTML = '';
-    if (questionsList.length === 0) {
-      questionsPool.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">لا توجد أسئلة مضافة حالياً.</div>';
+    
+    // Filter questions list by activeCategories
+    let filteredList = questionsList;
+    if (activeCategories.size > 0) {
+      filteredList = questionsList.filter(q => activeCategories.has(q.category || 'عام'));
+    }
+
+    if (filteredList.length === 0) {
+      questionsPool.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">لا توجد أسئلة تطابق التصنيف المختار.</div>';
       return;
     }
 
     // Show asked questions greyed out at the bottom, unasked at the top
-    const unasked = questionsList.filter(q => !askedQuestionsSet.has(parseInt(q.id)));
-    const asked = questionsList.filter(q => askedQuestionsSet.has(parseInt(q.id)));
+    const unasked = filteredList.filter(q => !askedQuestionsSet.has(parseInt(q.id)));
+    const asked = filteredList.filter(q => askedQuestionsSet.has(parseInt(q.id)));
     [...unasked, ...asked].forEach(q => {
       const isAsked = askedQuestionsSet.has(parseInt(q.id));
       const card = document.createElement('div');

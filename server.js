@@ -185,6 +185,15 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 1.8. Check Admin Password
+  socket.on('check-password', ({ password }) => {
+    if (password === ADMIN_PASSWORD) {
+      socket.emit('password-checked', { success: true });
+    } else {
+      socket.emit('password-checked', { success: false });
+    }
+  });
+
   // 2. Join Room (Admin, Presenter, Player)
   socket.on('join-room', async ({ roomCode, role, name, color, password, playerId }) => {
     const cleanRoomCode = roomCode ? roomCode.toString().trim() : '';
@@ -220,6 +229,19 @@ io.on('connection', (socket) => {
       const players = await getPlayers(cleanRoomCode);
       socket.emit('player-list-update', players);
       socket.emit('turn-updated', await buildTurnPayload(cleanRoomCode));
+
+      // Sync active question for admin
+      if (room.current_question_id && room.question_status !== 'idle') {
+        const question = await fetchQuestion(room.current_question_id);
+        const answers = await getAnswersForQuestion(cleanRoomCode, room.current_question_id);
+        socket.emit('sync-question', {
+          question,
+          questionStatus: room.question_status,
+          answeredCount: answers.length,
+          timerDuration: room.timer_duration,
+          startTime: room.question_start_time
+        });
+      }
     }
     else if (role === 'presenter') {
       socket.emit('presenter-joined', { room });
@@ -293,7 +315,7 @@ io.on('connection', (socket) => {
   // 3. Start Game (Admin)
   socket.on('start-game', async () => {
     const roomCode = socket.roomId;
-    if (!roomCode || socket.role !== 'admin') return;
+    if (!roomCode || (socket.role !== 'admin' && socket.role !== 'presenter')) return;
 
     // Reset asked questions when starting a fresh game
     askedQuestions[roomCode] = new Set();
@@ -414,7 +436,7 @@ io.on('connection', (socket) => {
   // 6. Reveal Answer (Admin)
   socket.on('reveal-answer', async () => {
     const roomCode = socket.roomId;
-    if (!roomCode || socket.role !== 'admin') return;
+    if (!roomCode || (socket.role !== 'admin' && socket.role !== 'presenter')) return;
 
     const room = await getRoom(roomCode);
     if (!room || !room.current_question_id) return;
