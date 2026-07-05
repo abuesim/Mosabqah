@@ -746,6 +746,13 @@ document.addEventListener('DOMContentLoaded', () => {
     [...unasked, ...asked].forEach(q => {
       const isAsked = askedQuestionsSet.has(parseInt(q.id));
       const card = document.createElement('div');
+      
+      // Determine difficulty border color
+      const diff = (q.difficulty || 'medium').toLowerCase();
+      let borderStyle = 'border-right: 4px solid var(--color-yellow);'; // default medium
+      if (diff === 'easy') borderStyle = 'border-right: 4px solid var(--color-green);';
+      else if (diff === 'hard') borderStyle = 'border-right: 4px solid var(--color-red);';
+
       card.style.cssText = `
         background: rgba(255, 255, 255, 0.04);
         border: 1px solid var(--glass-border);
@@ -755,12 +762,28 @@ document.addEventListener('DOMContentLoaded', () => {
         justify-content: space-between;
         align-items: center;
         gap: 15px;
+        ${borderStyle}
         ${isAsked ? 'opacity: 0.45; filter: grayscale(0.6);' : ''}
       `;
 
-      const categoryText = q.category === 'islamic' ? 'إسلامي' :
-                           q.category === 'riddles' ? 'لغز' :
-                           q.category === 'science' ? 'علوم' : 'عام';
+      // Determine Category badge
+      const cat = (q.category || 'general').toLowerCase();
+      let catBadgeHtml = '<span style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.15);">🌐 عام</span>';
+      if (cat === 'islamic') {
+        catBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">🕌 إسلامي</span>';
+      } else if (cat === 'riddles') {
+        catBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">🧩 لغز</span>';
+      } else if (cat === 'science') {
+        catBadgeHtml = '<span style="background: rgba(112, 161, 255, 0.15); color: #70a1ff; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(112, 161, 255, 0.3);">🔬 علوم</span>';
+      }
+
+      // Determine Difficulty badge
+      let diffBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">متوسط 🟡</span>';
+      if (diff === 'easy') {
+        diffBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">سهل 🟢</span>';
+      } else if (diff === 'hard') {
+        diffBadgeHtml = '<span style="background: rgba(255, 71, 87, 0.15); color: #ff4757; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 71, 87, 0.3);">صعب 🔴</span>';
+      }
 
       const askedBadge = isAsked
         ? '<span style="background: var(--color-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px;">✓ تم عرضه</span>'
@@ -768,11 +791,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.innerHTML = `
         <div style="flex-grow: 1;">
-          <div style="font-weight: bold; margin-bottom: 5px;">${q.question_text}${askedBadge}</div>
-          <div style="font-size: 12px; color: var(--text-secondary);">
-            التصنيف: <strong>${categoryText}</strong> |
-            مستوى الصعوبة: <strong style="color: var(--primary-accent);">${q.difficulty || 'medium'}</strong> |
-            الإجابة الصحيحة: <span style="color: var(--color-green); font-weight: bold;">${q['option' + q.correct_option]}</span>
+          <div style="font-weight: bold; margin-bottom: 8px;">${q.question_text}${askedBadge}</div>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            ${catBadgeHtml}
+            ${diffBadgeHtml}
+            <span style="font-size: 12px; color: var(--text-secondary); margin-inline-start: auto;">
+              الإجابة: <span style="color: var(--color-green); font-weight: bold;">${q['option' + q.correct_option]}</span>
+            </span>
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">

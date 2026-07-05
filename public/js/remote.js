@@ -29,10 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeQAnswers = document.getElementById('active-q-answers');
 
   // DOM Elements - Remote control buttons
-  const btnReveal = document.getElementById('btn-reveal');
+  const btnStartEndGame = document.getElementById('btn-start-end-game');
+  const btnRemoteConfirmAnswer = document.getElementById('btn-remote-confirm-answer');
   const btnRandomQ = document.getElementById('btn-random-q');
   const btnTrialQ = document.getElementById('btn-trial-q');
-  const btnEndG = document.getElementById('btn-end-g');
   const btnGroupNextQ = document.getElementById('btn-group-next-q');
 
   // DOM Elements - Lists
@@ -57,6 +57,42 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { successToast.style.display = 'none'; }, 3000);
   }
 
+  function updateStartEndGameButton() {
+    if (!btnStartEndGame) return;
+    if (currentRoomStatus === 'waiting' || currentRoomStatus === 'idle') {
+      btnStartEndGame.textContent = 'بدء المسابقة ▶️';
+      btnStartEndGame.style.background = 'linear-gradient(135deg, var(--primary-accent), #3b82f6)';
+      btnStartEndGame.disabled = false;
+    } else if (currentRoomStatus === 'playing') {
+      btnStartEndGame.textContent = 'إنهاء المسابقة 🏁';
+      btnStartEndGame.style.background = 'linear-gradient(135deg, var(--color-red), #ee5253)';
+      btnStartEndGame.disabled = false;
+    } else if (currentRoomStatus === 'finished') {
+      btnStartEndGame.textContent = 'المسابقة انتهت 🏁';
+      btnStartEndGame.style.background = '#475569';
+      btnStartEndGame.disabled = true;
+    }
+  }
+
+  function startRemoteTimer(duration, startTimeMs) {
+    clearInterval(remoteTimerInterval);
+    if (!startTimeMs) return;
+    const update = () => {
+      const elapsed = Math.round((Date.now() - startTimeMs) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+      
+      if (btnStartEndGame && currentRoomStatus === 'playing') {
+        btnStartEndGame.innerHTML = `إنهاء المسابقة 🏁 <span style="background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-inline-start: 8px; font-family: monospace;">⏱️ ${remaining}ث</span>`;
+      }
+
+      if (remaining <= 0) {
+        clearInterval(remoteTimerInterval);
+      }
+    };
+    update();
+    remoteTimerInterval = setInterval(update, 1000);
+  }
+
   // State Variables
   let currentRoom = null;
   let adminPassword = '';
@@ -65,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let askedQuestionsSet = new Set();
   let activeCategories = new Set();
   let activeDifficulties = new Set();
+  let currentRoomStatus = 'waiting';
+  let remoteTimerInterval = null;
 
   // URL Query parameter check (auto-prefill room code)
   const urlParams = new URLSearchParams(window.location.search);
@@ -152,9 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Socket: Room Joined ---
   socket.on('admin-joined', ({ room }) => {
     currentRoom = room;
+    currentRoomStatus = room.status;
     dashboardRoomCode.textContent = room.id;
     dashboardRoomType.textContent = room.type === 'individual' ? 'لعب فردي' : 'لعب جماعي';
     btnGroupNextQ.style.display = room.type === 'group' ? 'flex' : 'none';
+
+    updateStartEndGameButton();
 
     screenSetup.style.display = 'none';
     screenDashboard.style.display = 'block';
@@ -165,11 +206,40 @@ document.addEventListener('DOMContentLoaded', () => {
     showError(msg);
   });
 
-  // --- Control Button Listeners ---
-  btnReveal.addEventListener('click', () => {
-    socket.emit('reveal-answer');
-    showSuccess('تم إرسال أمر كشف الإجابة 🔔');
+  socket.on('game-started', () => {
+    currentRoomStatus = 'playing';
+    updateStartEndGameButton();
+    showSuccess('بدأت المسابقة! 🏁');
   });
+
+  socket.on('game-finished', () => {
+    currentRoomStatus = 'finished';
+    updateStartEndGameButton();
+    clearInterval(remoteTimerInterval);
+    showSuccess('انتهت المسابقة وتم عرض لوحة التتويج! 🏆');
+  });
+
+  // --- Control Button Listeners ---
+  if (btnStartEndGame) {
+    btnStartEndGame.addEventListener('click', () => {
+      if (currentRoomStatus === 'waiting' || currentRoomStatus === 'idle') {
+        socket.emit('start-game');
+        showSuccess('تم بدء المسابقة بنجاح ▶️');
+      } else if (currentRoomStatus === 'playing') {
+        if (confirm('هل أنت متأكد من رغبتك في إنهاء المسابقة وعرض النتائج الختامية؟')) {
+          socket.emit('end-game');
+          showSuccess('تم إنهاء المسابقة 🏁');
+        }
+      }
+    });
+  }
+
+  if (btnRemoteConfirmAnswer) {
+    btnRemoteConfirmAnswer.addEventListener('click', () => {
+      socket.emit('reveal-answer');
+      showSuccess('تم اعتماد الإجابة وكشف النتيجة 🔔');
+    });
+  }
 
   btnRandomQ.addEventListener('click', () => {
     socket.emit('admin-random-question');
@@ -181,25 +251,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showSuccess('طرح سؤال تجريبي 🎯');
   });
 
-  btnEndG.addEventListener('click', () => {
-    if (confirm('هل أنت متأكد من رغبتك في إنهاء المسابقة وعرض النتائج الختامية؟')) {
-      socket.emit('end-game');
-      showSuccess('تم إنهاء اللعبة 🏁');
-    }
-  });
-
   btnGroupNextQ.addEventListener('click', () => {
     socket.emit('group-next-question');
     showSuccess('طرح السؤال التالي للفرق ⏭️');
   });
 
   // --- Active Question Sync/Listeners ---
-  socket.on('sync-question', ({ question, questionStatus, answeredCount }) => {
+  socket.on('sync-question', ({ question, questionStatus, answeredCount, timerDuration, startTime }) => {
     updateActiveQuestionDisplay(question, questionStatus, answeredCount);
+    if (questionStatus === 'showing' || questionStatus === 'showing_trial') {
+      startRemoteTimer(timerDuration || 30, startTime || Date.now());
+    } else {
+      clearInterval(remoteTimerInterval);
+      updateStartEndGameButton();
+    }
   });
 
-  socket.on('question-shown', ({ question, isTrial }) => {
-    updateActiveQuestionDisplay(question, isTrial ? 'showing_trial' : 'showing', 0);
+  socket.on('question-shown', ({ question, isTrial, timerDuration, startTime }) => {
+    const status = isTrial ? 'showing_trial' : 'showing';
+    updateActiveQuestionDisplay(question, status, 0);
+    startRemoteTimer(timerDuration || 30, startTime || Date.now());
   });
 
   socket.on('player-answered-count', (count) => {
@@ -211,6 +282,11 @@ document.addEventListener('DOMContentLoaded', () => {
       activeQStatus.textContent = `تم كشف الإجابة: (${correctText}) ✅`;
       activeQStatus.style.color = 'var(--color-green)';
     }
+    if (btnRemoteConfirmAnswer) {
+      btnRemoteConfirmAnswer.style.display = 'none';
+    }
+    clearInterval(remoteTimerInterval);
+    updateStartEndGameButton();
   });
 
   socket.on('timer-expired', () => {
@@ -218,6 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
       activeQStatus.textContent = 'انتهى وقت الإجابة! ⌛';
       activeQStatus.style.color = 'var(--color-red)';
     }
+    if (btnRemoteConfirmAnswer) {
+      btnRemoteConfirmAnswer.style.display = 'none';
+    }
+    clearInterval(remoteTimerInterval);
+    updateStartEndGameButton();
   });
 
   function updateActiveQuestionDisplay(question, questionStatus, answeredCount) {
@@ -234,13 +315,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (questionStatus === 'showing' || questionStatus === 'showing_trial') {
       activeQStatus.textContent = questionStatus === 'showing_trial' ? 'يستقبل الإجابات (تجريبي) 🎯' : 'يستقبل الإجابات ⏳';
       activeQStatus.style.color = 'var(--primary-accent)';
+      if (btnRemoteConfirmAnswer) {
+        btnRemoteConfirmAnswer.style.display = 'block';
+        btnRemoteConfirmAnswer.disabled = false;
+        btnRemoteConfirmAnswer.textContent = (questionStatus === 'showing_trial') ? 'اعتماد الإجابة (تجريبي) 🎯' : 'اعتماد وكشف الإجابة 🔔';
+      }
     } else if (questionStatus === 'revealed') {
       const correctOptText = question['option' + question.correct_option] || '';
       activeQStatus.textContent = `تم كشف الإجابة: (${correctOptText}) ✅`;
       activeQStatus.style.color = 'var(--color-green)';
+      if (btnRemoteConfirmAnswer) {
+        btnRemoteConfirmAnswer.style.display = 'none';
+      }
+      clearInterval(remoteTimerInterval);
+      updateStartEndGameButton();
     } else if (questionStatus === 'time_up') {
       activeQStatus.textContent = 'انتهى وقت الإجابة! ⌛';
       activeQStatus.style.color = 'var(--color-red)';
+      if (btnRemoteConfirmAnswer) {
+        btnRemoteConfirmAnswer.style.display = 'none';
+      }
+      clearInterval(remoteTimerInterval);
+      updateStartEndGameButton();
     }
   }
 
@@ -418,14 +514,55 @@ document.addEventListener('DOMContentLoaded', () => {
       const isAsked = askedQuestionsSet.has(parseInt(q.id));
       const card = document.createElement('div');
       card.className = 'remote-q-card';
-      if (isAsked) card.style.opacity = '0.5';
+      
+      // Determine difficulty border color
+      const diff = (q.difficulty || 'medium').toLowerCase();
+      let borderStyle = 'border-right: 4px solid var(--color-yellow);'; // default medium
+      if (diff === 'easy') borderStyle = 'border-right: 4px solid var(--color-green);';
+      else if (diff === 'hard') borderStyle = 'border-right: 4px solid var(--color-red);';
+      
+      card.style.cssText = `
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-sm);
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+        ${borderStyle}
+        ${isAsked ? 'opacity: 0.45; filter: grayscale(0.6);' : ''}
+      `;
+
+      // Determine Category badge
+      const cat = (q.category || 'general').toLowerCase();
+      let catBadgeHtml = '<span style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.15);">🌐 عام</span>';
+      if (cat === 'islamic') {
+        catBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">🕌 إسلامي</span>';
+      } else if (cat === 'riddles') {
+        catBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">🧩 لغز</span>';
+      } else if (cat === 'science') {
+        catBadgeHtml = '<span style="background: rgba(112, 161, 255, 0.15); color: #70a1ff; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(112, 161, 255, 0.3);">🔬 علوم</span>';
+      }
+
+      // Determine Difficulty badge
+      let diffBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">متوسط 🟡</span>';
+      if (diff === 'easy') {
+        diffBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">سهل 🟢</span>';
+      } else if (diff === 'hard') {
+        diffBadgeHtml = '<span style="background: rgba(255, 71, 87, 0.15); color: #ff4757; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid rgba(255, 71, 87, 0.3);">صعب 🔴</span>';
+      }
 
       card.innerHTML = `
         <div style="flex-grow: 1; text-align: right;">
-          <div style="font-weight: bold; font-size: 13px; color: white;">${q.question_text}</div>
-          <div style="font-size: 10px; color: var(--text-secondary); margin-top: 2px;">التصنيف: ${q.category || 'عام'} | الصعوبة: ${q.difficulty || 'medium'}</div>
+          <div style="font-weight: bold; font-size: 13px; color: white; margin-bottom: 6px;">${q.question_text}</div>
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            ${catBadgeHtml}
+            ${diffBadgeHtml}
+          </div>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
           <button class="btn btn-send-q" data-id="${q.id}" ${isAsked ? 'disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted); opacity: 0.5;"' : 'style="padding: 6px 12px; font-size: 11px; min-width: 60px;"'}>
             ${isAsked ? 'تم طرحه' : 'طرح 🚀'}
           </button>

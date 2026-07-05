@@ -146,25 +146,32 @@
         </div>
       </div>
 
+      <!-- Top Control Button (Start/End Game) -->
+      <div style="margin-bottom: 15px;">
+        <button id="btn-start-end-game" class="btn" style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: linear-gradient(135deg, var(--primary-accent), #3b82f6); border: none; box-shadow: var(--shadow-sm); transition: all 0.2s;">
+          بدء المسابقة ▶️
+        </button>
+      </div>
+
       <!-- Active Question Panel -->
       <div class="glass-panel" style="padding: 15px; margin-bottom: 15px;">
         <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">السؤال النشط حالياً:</div>
         <div id="active-question-none" style="color: var(--text-muted); text-align: center; padding: 10px; font-size: 13px;">لا يوجد سؤال معروض حالياً.</div>
         <div id="active-question-details" style="display: none;">
           <div id="active-q-text" style="font-size: 15px; font-weight: bold; margin-bottom: 10px; line-height: 1.4; color: white;">نص السؤال؟</div>
-          <div style="font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--glass-border); padding-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--glass-border); padding-top: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <span>الحالة: <span id="active-q-status" style="font-weight: bold;">يستقبل الإجابات</span></span>
             <span>المنضمين الذين أجابوا: <span id="active-q-answers" style="color: var(--primary-accent); font-weight: bold;">0</span></span>
           </div>
+          <!-- Clickable Confirm Answers Button inside the active card itself -->
+          <button id="btn-remote-confirm-answer" class="btn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: bold; background: linear-gradient(135deg, var(--color-green), #10ac84); border: none; box-shadow: none;">
+            اعتماد وكشف الإجابة 🔔
+          </button>
         </div>
       </div>
 
       <!-- Remote Control buttons grid -->
       <div class="remote-grid">
-        <button id="btn-reveal" class="remote-btn remote-btn-green" style="border: none; outline: none;">
-          <span style="font-size: 22px; margin-bottom: 4px;">🔔</span>
-          <span>كشف الإجابة</span>
-        </button>
         <button id="btn-random-q" class="remote-btn remote-btn-blue" style="border: none; outline: none;">
           <span style="font-size: 22px; margin-bottom: 4px;">🎲</span>
           <span>سؤال عشوائي</span>
@@ -172,10 +179,6 @@
         <button id="btn-trial-q" class="remote-btn remote-btn-yellow" style="border: none; outline: none;">
           <span style="font-size: 22px; margin-bottom: 4px;">🎯</span>
           <span>سؤال تجريبي</span>
-        </button>
-        <button id="btn-end-g" class="remote-btn remote-btn-red" style="border: none; outline: none;">
-          <span style="font-size: 22px; margin-bottom: 4px;">🏁</span>
-          <span>إنهاء اللعبة</span>
         </button>
         <!-- Group mode autoplay next button -->
         <button id="btn-group-next-q" class="remote-btn remote-btn-blue" style="grid-column: span 2; display: none; border: none; outline: none;">
