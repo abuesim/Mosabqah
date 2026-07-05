@@ -77,6 +77,8 @@ export async function initDatabase() {
       score INTEGER DEFAULT 0,
       is_active INTEGER DEFAULT 1,
       team_id TEXT,
+      lifelines_remaining INTEGER DEFAULT 2,
+      streak INTEGER DEFAULT 0,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     )
   `);
@@ -89,8 +91,14 @@ export async function initDatabase() {
       // Backfill: default team_id = color for existing rows
       await dbRun("UPDATE users SET team_id = color WHERE team_id IS NULL");
     }
+    if (!cols.some(c => c.name === 'lifelines_remaining')) {
+      await dbRun('ALTER TABLE users ADD COLUMN lifelines_remaining INTEGER DEFAULT 2');
+    }
+    if (!cols.some(c => c.name === 'streak')) {
+      await dbRun('ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0');
+    }
   } catch (err) {
-    console.error('team_id migration error:', err.message);
+    console.error('users columns migration error:', err.message);
   }
 
   // Safe migration for existing databases: add name column to rooms if missing
@@ -125,9 +133,20 @@ export async function initDatabase() {
       option4 TEXT NOT NULL,
       correct_option INTEGER NOT NULL, -- 1, 2, 3, or 4
       difficulty TEXT DEFAULT 'medium', -- 'easy', 'medium', 'hard'
-      category TEXT DEFAULT 'general'
+      category TEXT DEFAULT 'general',
+      image_url TEXT
     )
   `);
+
+  // Safe migration for existing databases: add image_url column if missing
+  try {
+    const qCols = await dbAll("PRAGMA table_info(questions)");
+    if (!qCols.some(c => c.name === 'image_url')) {
+      await dbRun('ALTER TABLE questions ADD COLUMN image_url TEXT');
+    }
+  } catch (err) {
+    console.error('questions image_url migration error:', err.message);
+  }
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS player_answers (
@@ -377,6 +396,10 @@ export async function getPlayers(roomId) {
   return await dbAll('SELECT * FROM users WHERE room_id = ? ORDER BY score DESC', [roomId]);
 }
 
+export async function getPlayerById(playerId) {
+  return await dbGet('SELECT * FROM users WHERE id = ?', [playerId]);
+}
+
 // For group mode: return teams in a stable insertion order (rowid) so turn rotation is consistent
 export async function getPlayersOrdered(roomId) {
   return await dbAll('SELECT * FROM users WHERE room_id = ? ORDER BY rowid ASC', [roomId]);
@@ -390,6 +413,25 @@ export async function setPlayerActiveStatus(playerId, isActive) {
   await dbRun('UPDATE users SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, playerId]);
 }
 
+// Atomically decrement the 50/50 lifeline count. Returns true if a lifeline was consumed,
+// false if the player had none remaining (guards against double-spend race conditions).
+export async function useLifeline(playerId) {
+  const res = await client.execute({
+    sql: 'UPDATE users SET lifelines_remaining = lifelines_remaining - 1 WHERE id = ? AND lifelines_remaining > 0',
+    args: [playerId]
+  });
+  return res.rowsAffected > 0;
+}
+
+export async function updatePlayerStreak(playerId, streak) {
+  await dbRun('UPDATE users SET streak = ? WHERE id = ?', [streak, playerId]);
+}
+
+// Reset per-game progress (lifelines + streak) for every player in a room — called on start-game
+export async function resetGameProgress(roomId) {
+  await dbRun('UPDATE users SET lifelines_remaining = 2, streak = 0 WHERE room_id = ?', [roomId]);
+}
+
 export async function getQuestions() {
   return await dbAll('SELECT * FROM questions');
 }
@@ -398,11 +440,11 @@ export async function getQuestion(questionId) {
   return await dbGet('SELECT * FROM questions WHERE id = ?', [questionId]);
 }
 
-export async function addQuestion(questionText, opt1, opt2, opt3, opt4, correctOpt, difficulty = 'medium', category = 'general') {
+export async function addQuestion(questionText, opt1, opt2, opt3, opt4, correctOpt, difficulty = 'medium', category = 'general', imageUrl = null) {
   const result = await dbRun(
-    `INSERT INTO questions (question_text, option1, option2, option3, option4, correct_option, difficulty, category)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [questionText, opt1, opt2, opt3, opt4, correctOpt, difficulty, category]
+    `INSERT INTO questions (question_text, option1, option2, option3, option4, correct_option, difficulty, category, image_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [questionText, opt1, opt2, opt3, opt4, correctOpt, difficulty, category, imageUrl || null]
   );
   return result;
 }

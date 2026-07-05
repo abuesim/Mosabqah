@@ -10,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let countdownInterval = null;
   let selectedColor = '#ff4757'; // Default selected red color
   let activeScore = 0;
+  let lifelinesRemaining = 2;
+  let lifelineUsedThisQuestion = false;
+  let currentStreak = 0;
 
   // Generate or retrieve persistent 6-digit Player ID from localStorage
   let playerId = localStorage.getItem('mosabqah_player_id');
@@ -65,6 +68,34 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const finalTotalScore = document.getElementById('final-total-score');
   const connectionStatus = document.getElementById('connection-status');
+
+  const btnLifeline5050 = document.getElementById('btn-lifeline-5050');
+  const lifelineRemainingVal = document.getElementById('lifeline-remaining-val');
+  const playerStreakBadge = document.getElementById('player-streak-badge');
+  const playerStreakVal = document.getElementById('player-streak-val');
+
+  // Update the 50/50 button's enabled/disabled state and label
+  function updateLifelineButtonUI(visibleOptionsCount) {
+    if (!btnLifeline5050 || !lifelineRemainingVal) return;
+    lifelineRemainingVal.textContent = lifelinesRemaining;
+
+    const notEnoughOptions = typeof visibleOptionsCount === 'number' && visibleOptionsCount <= 2;
+    const disabled = lifelinesRemaining <= 0 || lifelineUsedThisQuestion || notEnoughOptions;
+
+    btnLifeline5050.disabled = disabled;
+    btnLifeline5050.style.opacity = disabled ? '0.4' : '1';
+    btnLifeline5050.style.cursor = disabled ? 'not-allowed' : 'pointer';
+  }
+
+  function updateStreakBadgeUI() {
+    if (!playerStreakBadge || !playerStreakVal) return;
+    if (currentStreak >= 3) {
+      playerStreakVal.textContent = currentStreak;
+      playerStreakBadge.style.display = 'inline';
+    } else {
+      playerStreakBadge.style.display = 'none';
+    }
+  }
 
   // Pre-fill room code from URL parameter if present
   const urlParams = new URLSearchParams(window.location.search);
@@ -228,7 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
     currentRoom = room;
     playerDetails = player;
     activeScore = player.score;
-    
+    lifelinesRemaining = (player.lifelines_remaining !== undefined && player.lifelines_remaining !== null) ? player.lifelines_remaining : 2;
+    currentStreak = player.streak || 0;
+    updateLifelineButtonUI();
+    updateStreakBadgeUI();
+
     lobbyWelcome.textContent = `أهلاً بك يا ${player.name}!`;
     lobbyColorIndicator.style.color = player.color;
     lobbyColorIndicator.style.backgroundColor = player.color;
@@ -254,6 +289,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (self) {
         activeScore = self.score;
         playerScoreVal.textContent = activeScore;
+        lifelinesRemaining = (self.lifelines_remaining !== undefined && self.lifelines_remaining !== null) ? self.lifelines_remaining : lifelinesRemaining;
+        currentStreak = self.streak || 0;
+        updateLifelineButtonUI();
+        updateStreakBadgeUI();
       }
     }
     // Update player scoreboard overlay in real time if visible
@@ -297,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const isSelf = playerDetails && p.id === playerDetails.id;
       const teamColor = p.team_id || p.color;
+      const streakBadge = (p.streak || 0) >= 3 ? ` 🔥${p.streak}` : '';
 
       // Color the whole card with the player's team color
       item.style.background = `${teamColor}22`;
@@ -307,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
         <div class="player-info">
           <div class="player-dot" style="color: ${p.color}; background-color: ${p.color}"></div>
-          <span class="player-name" style="${isSelf ? 'font-weight: bold; color: var(--color-yellow);' : ''}">${p.name} ${isSelf ? '⭐ (أنت)' : ''}</span>
+          <span class="player-name" style="${isSelf ? 'font-weight: bold; color: var(--color-yellow);' : ''}">${p.name}${streakBadge} ${isSelf ? '⭐ (أنت)' : ''}</span>
         </div>
         <span class="player-score">${p.score} نقطة</span>
       `;
@@ -416,20 +456,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('opt-text-4').textContent = question.option4;
     
     // Re-enable and reset options (hiding empty ones dynamically)
+    let visibleOptionsCount = 0;
     optionButtons.forEach(btn => {
       const optNum = btn.getAttribute('data-opt');
       const optVal = question[`option${optNum}`];
-      
+
       if (optVal && optVal.trim() !== '') {
         btn.style.display = 'flex';
         btn.disabled = false;
         btn.style.opacity = '1';
         btn.style.transform = 'none';
         btn.classList.remove('selected-option');
+        visibleOptionsCount++;
       } else {
         btn.style.display = 'none';
       }
     });
+
+    // Reset the 50/50 lifeline for the new question (not usable during trial rounds)
+    lifelineUsedThisQuestion = false;
+    if (btnLifeline5050) {
+      btnLifeline5050.style.display = isTrial ? 'none' : 'inline-block';
+    }
+    updateLifelineButtonUI(visibleOptionsCount);
 
     // Start Timer
     let secondsLeft = timerDuration;
@@ -491,6 +540,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // 50/50 Lifeline button click
+  if (btnLifeline5050) {
+    btnLifeline5050.addEventListener('click', () => {
+      if (!currentQuestion || btnLifeline5050.disabled) return;
+      socket.emit('use-lifeline-5050', { questionId: currentQuestion.id });
+    });
+  }
+
+  // Socket: 50/50 lifeline result — hide the given wrong options
+  socket.on('lifeline-5050-result', ({ hiddenOptions, remaining }) => {
+    lifelineUsedThisQuestion = true;
+    lifelinesRemaining = remaining;
+    updateLifelineButtonUI();
+
+    (hiddenOptions || []).forEach(optNum => {
+      const btn = document.querySelector(`.option-btn[data-opt="${optNum}"]`);
+      if (btn) {
+        btn.style.transition = 'opacity 0.4s ease';
+        btn.style.opacity = '0';
+        setTimeout(() => { btn.style.display = 'none'; }, 400);
+        btn.disabled = true;
+      }
+    });
+  });
+
   const correctAnswerBox = document.getElementById('correct-answer-box');
   const correctAnswerText = document.getElementById('correct-answer-text');
 
@@ -502,6 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
     feedbackDesc.textContent = 'بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...';
     scoreEarnedPanel.style.display = 'none';
     if (correctAnswerBox) correctAnswerBox.style.display = 'none';
+    const streakBanner1 = document.getElementById('streak-bonus-banner');
+    if (streakBanner1) streakBanner1.style.display = 'none';
     feedbackTotalScore.textContent = activeScore;
 
     showScreen('feedback');
@@ -519,16 +595,34 @@ document.addEventListener('DOMContentLoaded', () => {
       feedbackDesc.textContent = 'بانتظار المقدم لكشف النتيجة...';
       scoreEarnedPanel.style.display = 'none';
       if (correctAnswerBox) correctAnswerBox.style.display = 'none';
+      const streakBanner2 = document.getElementById('streak-bonus-banner');
+      if (streakBanner2) streakBanner2.style.display = 'none';
       feedbackTotalScore.textContent = activeScore;
       showScreen('feedback');
     }
   });
 
   // Socket: Reveal Answer results
-  socket.on('answer-revealed', ({ correctOption, correctText, isCorrect, chosenOption, pointsEarned, totalScore, isTrial }) => {
+  socket.on('answer-revealed', ({ correctOption, correctText, isCorrect, chosenOption, pointsEarned, totalScore, isTrial, streak, streakBonus }) => {
     activeScore = totalScore;
     feedbackTotalScore.textContent = totalScore;
     sounds.stopHeartbeat();
+
+    if (!isTrial && typeof streak === 'number') {
+      currentStreak = streak;
+      updateStreakBadgeUI();
+    }
+
+    const streakBonusBanner = document.getElementById('streak-bonus-banner');
+    const streakBonusCount = document.getElementById('streak-bonus-count');
+    if (streakBonusBanner) {
+      if (streakBonus) {
+        if (streakBonusCount) streakBonusCount.textContent = streak;
+        streakBonusBanner.style.display = 'block';
+      } else {
+        streakBonusBanner.style.display = 'none';
+      }
+    }
 
     if (isCorrect) {
       feedbackIcon.textContent = isTrial ? '🎯' : '✅';

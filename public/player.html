@@ -110,16 +110,24 @@
           </span>
           <div id="player-score-hud" style="background: rgba(255, 165, 0, 0.12); border: 1px solid rgba(255, 165, 0, 0.4); color: var(--color-yellow); padding: 4px 12px; border-radius: 30px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 0 10px rgba(255, 165, 0, 0.15);">
             ⭐ <span id="player-score-val">0</span> نقطة
+            <span id="player-streak-badge" style="display: none; margin-inline-start: 4px;">🔥<span id="player-streak-val">0</span></span>
           </div>
         </div>
 
         <h3 id="question-text" style="font-size: 20px; line-height: 1.5; margin-bottom: 20px; text-align: center;">جاري تحميل السؤال...</h3>
-        
+
         <!-- Timer bar -->
         <div class="timer-container">
           <div id="timer-bar" class="timer-bar"></div>
         </div>
-        <div style="text-align: center; font-weight: bold; margin-bottom: 20px;" id="timer-text">30</div>
+        <div style="text-align: center; font-weight: bold; margin-bottom: 16px;" id="timer-text">30</div>
+
+        <!-- 50/50 Lifeline button -->
+        <div style="text-align: center; margin-bottom: 20px;">
+          <button id="btn-lifeline-5050" style="background: rgba(112, 161, 255, 0.15); border: 2px solid var(--primary-accent); color: var(--primary-accent); padding: 8px 20px; border-radius: 30px; font-size: 14px; font-weight: 800; cursor: pointer; transition: all 0.25s ease;">
+            ✂️ 50/50 (<span id="lifeline-remaining-val">2</span>)
+          </button>
+        </div>
 
         <!-- Touch Options Grid for Mobile -->
         <div class="options-grid">
@@ -159,6 +167,12 @@
         <div id="score-earned-panel" style="display: none; background: rgba(46, 213, 115, 0.1); border: 1px solid rgba(46, 213, 115, 0.2); padding: 15px; border-radius: var(--radius-md); max-width: 250px; margin: 0 auto 20px;">
           <div style="font-size: 14px; color: var(--text-secondary);">النقاط المكتسبة:</div>
           <div id="feedback-points" style="font-size: 24px; font-weight: 800; color: var(--color-green);">+120</div>
+        </div>
+
+        <!-- Streak bonus banner (shown when 3+ consecutive correct answers double the points) -->
+        <div id="streak-bonus-banner" style="display: none; background: linear-gradient(135deg, rgba(255, 71, 87, 0.15), rgba(255, 165, 2, 0.1)); border: 2px solid var(--color-red); padding: 12px 18px; border-radius: var(--radius-md); max-width: 300px; margin: 0 auto 20px; text-align: center; box-shadow: 0 0 20px rgba(255, 71, 87, 0.25);">
+          <div style="font-size: 20px; font-weight: 900; color: var(--color-red);">🔥 سلسلة <span id="streak-bonus-count">3</span> إجابات صحيحة!</div>
+          <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">نقاط مضاعفة ×2 🎉</div>
         </div>
 
         <!-- Big current-score card -->

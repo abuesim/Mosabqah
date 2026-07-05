@@ -14,6 +14,7 @@ import {
   addPlayer,
   getPlayers,
   getPlayersOrdered,
+  getPlayerById,
   updatePlayerScore,
   setPlayerActiveStatus,
   setPlayerTeam,
@@ -26,7 +27,10 @@ import {
   addQuestion,
   deleteQuestion,
   deleteAllQuestions,
-  updateRoomScoreboardVisibility
+  updateRoomScoreboardVisibility,
+  useLifeline,
+  updatePlayerStreak,
+  resetGameProgress
 } from './database.js';
 
 dotenv.config();
@@ -72,6 +76,8 @@ const askedQuestions = {};
 const trialMode = {};
 // In-memory answer store for the trial question (never touches DB because trial question ID=0 has no FK)
 const trialAnswers = {};
+// Track which players already used their 50/50 lifeline on the CURRENT question (roomCode -> Set<playerId>)
+const lifelineUsedThisQuestion = {};
 
 async function fetchQuestion(questionId) {
   if (parseInt(questionId) === 0) return TRIAL_QUESTION;
@@ -88,7 +94,8 @@ const TRIAL_QUESTION = {
   option4: 'سورة الأعراف',
   correct_option: 2,
   difficulty: 'easy',
-  category: 'general'
+  category: 'general',
+  image_url: null
 };
 
 function shuffleArray(arr) {
@@ -326,6 +333,12 @@ io.on('connection', (socket) => {
     // Reset asked questions when starting a fresh game
     askedQuestions[roomCode] = new Set();
     io.to(roomCode).emit('asked-questions-update', []);
+    lifelineUsedThisQuestion[roomCode] = new Set();
+
+    // Reset each player's lifelines (50/50) and win streak for the new game
+    await resetGameProgress(roomCode);
+    const players = await getPlayers(roomCode);
+    io.to(roomCode).emit('player-list-update', players);
 
     await updateRoomStatus(roomCode, 'active');
     io.to(roomCode).emit('game-started');
@@ -460,6 +473,63 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 5b. Use 50/50 Lifeline (Player, individual mode only) — hides wrong options, leaving the
+  // correct one plus exactly one wrong option. Each player gets 2 uses per game.
+  socket.on('use-lifeline-5050', async ({ questionId }) => {
+    const roomCode = socket.roomId;
+    const playerId = socket.playerId;
+    if (!roomCode || !playerId || socket.role !== 'player') return;
+
+    const room = await getRoom(roomCode);
+    if (!room || room.type !== 'individual' || room.question_status !== 'showing') {
+      socket.emit('error-msg', 'وسيلة المساعدة غير متاحة الآن');
+      return;
+    }
+    if (trialMode[roomCode]) {
+      socket.emit('error-msg', 'لا يمكن استخدام وسيلة المساعدة في السؤال التجريبي');
+      return;
+    }
+
+    if (!lifelineUsedThisQuestion[roomCode]) lifelineUsedThisQuestion[roomCode] = new Set();
+    if (lifelineUsedThisQuestion[roomCode].has(playerId)) {
+      socket.emit('error-msg', 'لقد استخدمت وسيلة المساعدة لهذا السؤال بالفعل');
+      return;
+    }
+
+    const question = await fetchQuestion(questionId);
+    if (!question) return;
+
+    // Wrong, non-empty option indices (supports questions with 2, 3, or 4 options)
+    const wrongIndices = [1, 2, 3, 4].filter(i => {
+      const val = question[`option${i}`];
+      return i !== question.correct_option && val && val.toString().trim() !== '';
+    });
+
+    // Leave exactly one wrong option visible alongside the correct one
+    const numToHide = wrongIndices.length - 1;
+    if (numToHide <= 0) {
+      socket.emit('error-msg', 'لا توجد خيارات كافية لاستخدام وسيلة المساعدة');
+      return;
+    }
+
+    const consumed = await useLifeline(playerId);
+    if (!consumed) {
+      socket.emit('error-msg', 'لقد استنفدت رصيدك من وسيلة المساعدة (50/50)');
+      return;
+    }
+
+    lifelineUsedThisQuestion[roomCode].add(playerId);
+
+    const shuffledWrong = shuffleArray(wrongIndices);
+    const hiddenOptions = shuffledWrong.slice(0, numToHide);
+
+    const updatedPlayer = await getPlayerById(playerId);
+    socket.emit('lifeline-5050-result', {
+      hiddenOptions,
+      remaining: updatedPlayer ? updatedPlayer.lifelines_remaining : 0
+    });
+  });
+
   // 6. Reveal Answer (Admin)
   socket.on('reveal-answer', async () => {
     const roomCode = socket.roomId;
@@ -482,15 +552,31 @@ io.on('connection', (socket) => {
       ? (trialAnswers[roomCode] || [])
       : await getAnswersForQuestion(roomCode, room.current_question_id);
 
-    // Award points only for real questions
+    // Award points only for real questions; also track consecutive-correct win streaks.
+    // Reaching a streak of 3+ correct answers in a row doubles that answer's points.
+    const pointsAwardedMap = {}; // playerId -> { points, streak, streakBonus }
     if (!isTrial) {
-      for (const ans of answers) {
-        if (ans.is_correct) {
+      const playersBeforeUpdate = await getPlayers(roomCode);
+      const activePlayersBefore = playersBeforeUpdate.filter(p => p.is_active === 1);
+
+      for (const player of activePlayersBefore) {
+        const ans = answers.find(a => a.player_id === player.id);
+        if (ans && ans.is_correct) {
           const timeTaken = ans.answered_in_seconds || 0;
           const maxTime = room.timer_duration;
           const speedBonus = Math.max(0, Math.round(((maxTime - timeTaken) / maxTime) * 50));
-          const totalPoints = 100 + speedBonus;
-          await updatePlayerScore(ans.player_id, totalPoints);
+          let totalPoints = 100 + speedBonus;
+
+          const newStreak = (player.streak || 0) + 1;
+          const streakBonus = newStreak >= 3;
+          if (streakBonus) totalPoints *= 2;
+
+          await updatePlayerScore(player.id, totalPoints);
+          await updatePlayerStreak(player.id, newStreak);
+          pointsAwardedMap[player.id] = { points: totalPoints, streak: newStreak, streakBonus };
+        } else if (player.streak) {
+          // Wrong answer or no answer at all — break the streak
+          await updatePlayerStreak(player.id, 0);
         }
       }
     }
@@ -507,18 +593,17 @@ io.on('connection', (socket) => {
       if (playerSocket.role === 'player') {
         const playerAnswer = answers.find(a => a.player_id === playerSocket.playerId);
         const scoreData = players.find(p => p.id === playerSocket.playerId);
-
-        const earned = (!isTrial && playerAnswer && playerAnswer.is_correct)
-          ? (100 + Math.max(0, Math.round(((room.timer_duration - playerAnswer.answered_in_seconds) / room.timer_duration) * 50)))
-          : 0;
+        const award = pointsAwardedMap[playerSocket.playerId];
 
         playerSocket.emit('answer-revealed', {
           correctOption: question.correct_option,
           correctText: question[`option${question.correct_option}`],
           isCorrect: playerAnswer ? !!playerAnswer.is_correct : false,
           chosenOption: playerAnswer ? playerAnswer.chosen_option : null,
-          pointsEarned: earned,
+          pointsEarned: award ? award.points : 0,
           totalScore: scoreData ? scoreData.score : 0,
+          streak: scoreData ? scoreData.streak : 0,
+          streakBonus: award ? award.streakBonus : false,
           isTrial
         });
       }
@@ -614,7 +699,8 @@ io.on('connection', (socket) => {
         qData.option4,
         parseInt(qData.correct_option),
         qData.difficulty,
-        qData.category
+        qData.category,
+        qData.image_url || null
       );
       const list = await getQuestions();
       socket.emit('questions-list', list);
@@ -638,7 +724,8 @@ io.on('connection', (socket) => {
           qData.option4,
           parseInt(qData.correct_option),
           qData.difficulty || 'medium',
-          qData.category || 'general'
+          qData.category || 'general',
+          qData.image_url || null
         );
       }
       const list = await getQuestions();
@@ -795,6 +882,9 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('asked-questions-update', Array.from(askedQuestions[roomCode]));
     }
 
+    // Fresh question → clear any 50/50 lifeline usage tracked for the previous question
+    lifelineUsedThisQuestion[roomCode] = new Set();
+
     // Clear previous timers if any
     if (activeTimers[roomCode]) {
       clearTimeout(activeTimers[roomCode]);
@@ -822,7 +912,8 @@ io.on('connection', (socket) => {
         option3: question.option3,
         option4: question.option4,
         category: question.category,
-        difficulty: question.difficulty
+        difficulty: question.difficulty,
+        image_url: question.image_url || null
       };
 
       // Compute progress counter (trial doesn't count toward the asked total)

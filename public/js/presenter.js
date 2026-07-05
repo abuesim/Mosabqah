@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const qCategory = document.getElementById('q-category');
   const qText = document.getElementById('q-text');
+  const qImageContainer = document.getElementById('q-image-container');
+  const qImage = document.getElementById('q-image');
   const qTimerBar = document.getElementById('q-timer-bar');
   const qTimerText = document.getElementById('q-timer-text');
   const answeredCount = document.getElementById('answered-count');
@@ -36,6 +38,18 @@ document.addEventListener('DOMContentLoaded', () => {
     3: document.getElementById('q-opt-3'),
     4: document.getElementById('q-opt-4')
   };
+
+  // Show/hide the question image (multimedia questions)
+  function updateQuestionImage(imageUrl) {
+    if (!qImageContainer || !qImage) return;
+    if (imageUrl && imageUrl.trim() !== '') {
+      qImage.src = imageUrl;
+      qImageContainer.style.display = 'block';
+    } else {
+      qImage.src = '';
+      qImageContainer.style.display = 'none';
+    }
+  }
 
   const resultQText = document.getElementById('result-q-text');
   const correctAnswerDisplay = document.getElementById('correct-answer-display');
@@ -294,12 +308,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                question.category === 'riddles' ? 'لغز' : 
                                question.category === 'science' ? 'علوم' : 'عام';
       qText.textContent = question.question_text;
-      
+      updateQuestionImage(question.image_url);
+
       document.getElementById('q-opt-text-1').textContent = question.option1;
       document.getElementById('q-opt-text-2').textContent = question.option2;
       document.getElementById('q-opt-text-3').textContent = question.option3;
       document.getElementById('q-opt-text-4').textContent = question.option4;
-      
+
       answeredCount.textContent = ansCount;
 
       // Reset options styling (only display non-empty options)
@@ -583,12 +598,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     qText.textContent = question.question_text;
-    
+    updateQuestionImage(question.image_url);
+
     document.getElementById('q-opt-text-1').textContent = question.option1;
     document.getElementById('q-opt-text-2').textContent = question.option2;
     document.getElementById('q-opt-text-3').textContent = question.option3;
     document.getElementById('q-opt-text-4').textContent = question.option4;
-    
+
     answeredCount.textContent = '0';
 
     // Show options only if they contain text
@@ -741,15 +757,17 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (idx === 1) rankClass = 'rank-2';
       else if (idx === 2) rankClass = 'rank-3';
 
+      const streakBadge = (player.streak || 0) >= 3 ? ` 🔥${player.streak}` : '';
+
       item.innerHTML = `
         <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
         <div class="player-info">
           <div class="player-dot" style="color: ${player.color}; background-color: ${player.color}"></div>
-          <span class="player-name">${player.name}</span>
+          <span class="player-name">${player.name}${streakBadge}</span>
         </div>
         <span class="player-score">${player.score} نقطة</span>
       `;
-      
+
       resultsLeaderboardContainer.appendChild(item);
     });
 
@@ -794,11 +812,13 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (idx === 1) rankClass = 'rank-2';
       else if (idx === 2) rankClass = 'rank-3';
 
+      const streakBadge = (player.streak || 0) >= 3 ? ` 🔥${player.streak}` : '';
+
       item.innerHTML = `
         <div class="leaderboard-rank ${rankClass}">${idx + 1}</div>
         <div class="player-info">
           <div class="player-dot" style="color: ${player.color}; background-color: ${player.color}"></div>
-          <span class="player-name">${player.name}</span>
+          <span class="player-name">${player.name}${streakBadge}</span>
         </div>
         <span class="player-score">${player.score} نقطة</span>
       `;

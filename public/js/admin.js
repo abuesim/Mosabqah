@@ -255,7 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
           option4: entries[4],
           correct_option: parseInt(entries[5]) || 1,
           category: entries[6] || 'general',
-          difficulty: entries[7] || 'medium'
+          difficulty: entries[7] || 'medium',
+          image_url: entries[8] || null
         });
       }
     }
@@ -857,6 +858,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<span style="background: var(--color-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px;">✓ تم عرضه</span>'
         : '';
 
+      const imageBadge = (q.image_url && q.image_url.trim() !== '')
+        ? '<span style="background: rgba(112, 161, 255, 0.15); color: var(--primary-accent); font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px; border: 1px solid rgba(112, 161, 255, 0.3);">🖼️ صورة</span>'
+        : '';
+
       // Real questions are locked until the admin presses "بدء المسابقة"
       const isLocked = !gameStarted && !isAsked;
       const isDisabled = isAsked || isLocked;
@@ -864,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.innerHTML = `
         <div style="flex-grow: 1;">
-          <div style="font-weight: bold; margin-bottom: 8px;">${q.question_text}${askedBadge}</div>
+          <div style="font-weight: bold; margin-bottom: 8px;">${q.question_text}${imageBadge}${askedBadge}</div>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             ${catBadgeHtml}
             ${diffBadgeHtml}
@@ -1030,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="player-info" style="gap: 10px;">
             <span style="font-weight: 800; font-size: 18px; min-width: 30px;">${rankBadge}</span>
             <div class="player-dot" style="color: ${dotColor}; background-color: ${dotColor}"></div>
-            <span class="player-name">${player.name}</span>
+            <span class="player-name">${player.name}${(player.streak || 0) >= 3 ? ` <span title="سلسلة ${player.streak} إجابات صحيحة">🔥${player.streak}</span>` : ''}</span>
           </div>
           <div style="display: flex; align-items: center; gap: 10px;">
             <span class="player-score" id="score-val-${safeId}" style="font-size: 22px;">${player.score} نقطة</span>
@@ -1179,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
 
     const qTextVal = document.getElementById('new-q-text').value.trim();
+    const imageUrl = document.getElementById('new-q-image').value.trim();
     const opt1 = document.getElementById('new-opt-1').value.trim();
     const opt2 = document.getElementById('new-opt-2').value.trim();
     const opt3 = document.getElementById('new-opt-3').value.trim();
@@ -1188,6 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.emit('add-new-question', {
       question_text: qTextVal,
+      image_url: imageUrl || null,
       option1: opt1,
       option2: opt2,
       option3: opt3,
