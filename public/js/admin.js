@@ -557,6 +557,9 @@ document.addEventListener('DOMContentLoaded', () => {
       btnRevealAnswer.style.opacity = '1';
     }
     if (trialBadge) trialBadge.style.display = isTrial ? 'block' : 'none';
+
+    // If admin is currently on another tab, jump to Control so the reveal button is reachable
+    activateTab('control');
   });
 
   // Socket: Answered count update
@@ -849,14 +852,14 @@ document.addEventListener('DOMContentLoaded', () => {
     questionsPool.querySelectorAll('.btn-send-q:not([disabled])').forEach(btn => {
       btn.addEventListener('click', () => {
         const qId = btn.dataset.id;
-        
+
         // Hide start button if playing
         btnStartGame.style.display = 'none';
         btnEndGame.style.display = 'inline-flex';
 
         // Emit Question
         socket.emit('show-question', { questionId: qId });
-        
+
         // Show details in active question panel
         const question = questionsList.find(q => q.id == qId);
         activeQuestionNone.style.display = 'none';
@@ -867,6 +870,9 @@ document.addEventListener('DOMContentLoaded', () => {
         activeQAnswers.textContent = '0';
         btnRevealAnswer.disabled = false;
         btnRevealAnswer.style.opacity = '1';
+
+        // Jump to Control tab so the reveal button is immediately visible
+        activateTab('control');
       });
     });
 
