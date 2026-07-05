@@ -1,12 +1,23 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbPath = path.resolve(__dirname, 'database.sqlite');
+// Where to store the SQLite file:
+// - In production on Render, mount a Persistent Disk (e.g. at /data) and set DATA_DIR=/data.
+//   The DB survives restarts and redeploys.
+// - Locally (no DATA_DIR set), fall back to the project directory as before.
+const dataDir = process.env.DATA_DIR || __dirname;
+try {
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+} catch (err) {
+  console.error(`Could not create DATA_DIR "${dataDir}":`, err.message);
+}
+const dbPath = path.resolve(dataDir, 'database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 // Promisify database methods for clean async/await
