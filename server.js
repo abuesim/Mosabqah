@@ -382,10 +382,11 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('player-list-update', players);
   });
 
-  // 7b. Assign Player to a Team (Admin — for individual-mode ad-hoc teams)
+  // 7b. Assign Player to a Team (Admin OR Presenter — for individual-mode ad-hoc teams / drag-drop lobby)
   socket.on('assign-player-team', async ({ playerId, teamId }) => {
     const roomCode = socket.roomId;
-    if (!roomCode || socket.role !== 'admin') return;
+    if (!roomCode) return;
+    if (socket.role !== 'admin' && socket.role !== 'presenter') return;
     if (!playerId || !teamId) return;
 
     await setPlayerTeam(playerId, teamId);

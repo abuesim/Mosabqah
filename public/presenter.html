@@ -38,12 +38,51 @@
 
         <!-- Connected Players list -->
         <div class="glass-panel">
-          <h3 style="font-size: 22px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
+          <h3 style="font-size: 22px; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
             اللاعبين المتصلين (<span id="players-count">0</span>)
           </h3>
-          
+
+          <!-- INDIVIDUAL MODE: 4-column team board (drag-and-drop between teams) -->
+          <div id="team-lobby-board" style="display: none; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+            <div class="team-column" data-team="#ff4757" style="background: rgba(255, 71, 87, 0.08); border: 2px dashed rgba(255, 71, 87, 0.4); border-radius: var(--radius-md); padding: 10px; min-height: 260px; transition: all 0.2s ease;">
+              <div style="text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,71,87,0.3);">
+                <div style="font-size: 22px; font-weight: 900; color: #ff4757; text-shadow: 0 0 8px rgba(255,71,87,0.5);">🔴 الأحمر</div>
+                <div style="font-size: 11px; color: var(--text-muted);">أعضاء: <span class="team-count">0</span></div>
+              </div>
+              <div class="team-players" data-team="#ff4757" style="display: flex; flex-direction: column; gap: 6px; min-height: 200px;"></div>
+            </div>
+
+            <div class="team-column" data-team="#1e90ff" style="background: rgba(30, 144, 255, 0.08); border: 2px dashed rgba(30, 144, 255, 0.4); border-radius: var(--radius-md); padding: 10px; min-height: 260px; transition: all 0.2s ease;">
+              <div style="text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(30,144,255,0.3);">
+                <div style="font-size: 22px; font-weight: 900; color: #1e90ff; text-shadow: 0 0 8px rgba(30,144,255,0.5);">🔵 الأزرق</div>
+                <div style="font-size: 11px; color: var(--text-muted);">أعضاء: <span class="team-count">0</span></div>
+              </div>
+              <div class="team-players" data-team="#1e90ff" style="display: flex; flex-direction: column; gap: 6px; min-height: 200px;"></div>
+            </div>
+
+            <div class="team-column" data-team="#2ed573" style="background: rgba(46, 213, 115, 0.08); border: 2px dashed rgba(46, 213, 115, 0.4); border-radius: var(--radius-md); padding: 10px; min-height: 260px; transition: all 0.2s ease;">
+              <div style="text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(46,213,115,0.3);">
+                <div style="font-size: 22px; font-weight: 900; color: #2ed573; text-shadow: 0 0 8px rgba(46,213,115,0.5);">🟢 الأخضر</div>
+                <div style="font-size: 11px; color: var(--text-muted);">أعضاء: <span class="team-count">0</span></div>
+              </div>
+              <div class="team-players" data-team="#2ed573" style="display: flex; flex-direction: column; gap: 6px; min-height: 200px;"></div>
+            </div>
+
+            <div class="team-column" data-team="#ffa502" style="background: rgba(255, 165, 2, 0.08); border: 2px dashed rgba(255, 165, 2, 0.4); border-radius: var(--radius-md); padding: 10px; min-height: 260px; transition: all 0.2s ease;">
+              <div style="text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,165,2,0.3);">
+                <div style="font-size: 22px; font-weight: 900; color: #ffa502; text-shadow: 0 0 8px rgba(255,165,2,0.5);">🟡 الأصفر</div>
+                <div style="font-size: 11px; color: var(--text-muted);">أعضاء: <span class="team-count">0</span></div>
+              </div>
+              <div class="team-players" data-team="#ffa502" style="display: flex; flex-direction: column; gap: 6px; min-height: 200px;"></div>
+            </div>
+          </div>
+
+          <div id="team-lobby-hint" style="display: none; text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 12px; padding: 6px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm);">
+            💡 يمكن للمقدم سحب أي لاعب وإفلاته في عمود فريق آخر لإعادة التوزيع
+          </div>
+
+          <!-- GROUP MODE / fallback: original flat player badges -->
           <div id="players-container" style="display: flex; flex-wrap: wrap; gap: 12px; max-height: 400px; overflow-y: auto; padding: 5px;">
-            <!-- Player badge placeholder -->
             <div style="color: var(--text-muted); width: 100%; text-align: center; padding: 40px 0;">بانتظار انضمام أول لاعب...</div>
           </div>
         </div>

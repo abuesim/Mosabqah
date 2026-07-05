@@ -19,7 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const roomCodeDisplay = document.getElementById('room-code-display');
   const playersCount = document.getElementById('players-count');
   const playersContainer = document.getElementById('players-container');
+  const teamLobbyBoard = document.getElementById('team-lobby-board');
+  const teamLobbyHint = document.getElementById('team-lobby-hint');
   const soundControl = document.getElementById('sound-control');
+
+  const LOBBY_TEAM_COLORS = ['#ff4757', '#1e90ff', '#2ed573', '#ffa502'];
 
   const qCategory = document.getElementById('q-category');
   const qText = document.getElementById('q-text');
@@ -318,13 +322,30 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('player-list-update', (players) => {
     playersList = players;
     playersCount.textContent = players.length;
-    playersContainer.innerHTML = '';
 
+    // Individual mode + pre-game → show 4-column team board with drag-and-drop
+    const useTeamBoard = (roomType === 'individual');
+    if (useTeamBoard && teamLobbyBoard) {
+      teamLobbyBoard.style.display = 'grid';
+      if (teamLobbyHint) teamLobbyHint.style.display = 'block';
+      playersContainer.style.display = 'none';
+      renderTeamLobbyBoard(players);
+    } else {
+      if (teamLobbyBoard) teamLobbyBoard.style.display = 'none';
+      if (teamLobbyHint) teamLobbyHint.style.display = 'none';
+      playersContainer.style.display = 'flex';
+      renderFlatPlayersList(players);
+    }
+
+    updateTurnDisplay();
+  });
+
+  function renderFlatPlayersList(players) {
+    playersContainer.innerHTML = '';
     if (players.length === 0) {
       playersContainer.innerHTML = '<div style="color: var(--text-muted); width: 100%; text-align: center; padding: 40px 0;">بانتظار انضمام أول لاعب...</div>';
       return;
     }
-
     players.forEach(player => {
       const badge = document.createElement('div');
       badge.style.cssText = `
@@ -341,19 +362,113 @@ document.addEventListener('DOMContentLoaded', () => {
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
         transition: all 0.3s ease;
       `;
-      
       if (player.is_active === 0) {
         badge.style.opacity = '0.5';
         badge.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span> <s>${player.name}</s>`;
       } else {
         badge.innerHTML = `<span style="width: 10px; height: 10px; border-radius: 50%; background: ${player.color}; box-shadow: 0 0 8px ${player.color}"></span> ${player.name}`;
       }
-
       playersContainer.appendChild(badge);
     });
+  }
 
-    updateTurnDisplay();
-  });
+  function renderTeamLobbyBoard(players) {
+    // Clear all columns first
+    LOBBY_TEAM_COLORS.forEach(color => {
+      const col = teamLobbyBoard.querySelector(`.team-players[data-team="${color}"]`);
+      if (col) col.innerHTML = '';
+    });
+
+    // Group by team_id (falls back to color); unknown / off-palette teams go to red as a safe default
+    const bucketed = { '#ff4757': [], '#1e90ff': [], '#2ed573': [], '#ffa502': [] };
+    players.forEach(p => {
+      const teamKey = (p.team_id || p.color || '').toLowerCase();
+      const target = LOBBY_TEAM_COLORS.find(c => c.toLowerCase() === teamKey) || '#ff4757';
+      bucketed[target].push(p);
+    });
+
+    LOBBY_TEAM_COLORS.forEach(color => {
+      const col = teamLobbyBoard.querySelector(`.team-players[data-team="${color}"]`);
+      const countEl = teamLobbyBoard.querySelector(`.team-column[data-team="${color}"] .team-count`);
+      const columnEl = teamLobbyBoard.querySelector(`.team-column[data-team="${color}"]`);
+      if (!col || !countEl) return;
+
+      countEl.textContent = bucketed[color].length;
+
+      if (bucketed[color].length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'text-align: center; color: var(--text-muted); font-size: 12px; padding: 15px 0; opacity: 0.5;';
+        empty.textContent = 'اسحب لاعباً هنا';
+        col.appendChild(empty);
+      } else {
+        bucketed[color].forEach(p => col.appendChild(buildDraggablePlayerCard(p)));
+      }
+
+      // Attach drop targets (idempotent — re-attaching to a node just replaces the handler bindings by adding new ones,
+      // so we set the listeners on the column once by tracking via a data attribute)
+      if (columnEl && !columnEl.dataset.dropBound) {
+        columnEl.dataset.dropBound = '1';
+        columnEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          columnEl.style.background = `${color}25`;
+          columnEl.style.borderStyle = 'solid';
+          columnEl.style.transform = 'scale(1.02)';
+        });
+        columnEl.addEventListener('dragleave', () => {
+          columnEl.style.background = `${color}14`;
+          columnEl.style.borderStyle = 'dashed';
+          columnEl.style.transform = 'scale(1)';
+        });
+        columnEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          columnEl.style.background = `${color}14`;
+          columnEl.style.borderStyle = 'dashed';
+          columnEl.style.transform = 'scale(1)';
+          const pid = e.dataTransfer.getData('text/plain');
+          const targetTeam = columnEl.dataset.team;
+          if (!pid || !targetTeam) return;
+          // Optimistic UI: emit assignment; server will echo player-list-update
+          socket.emit('assign-player-team', { playerId: pid, teamId: targetTeam });
+        });
+      }
+    });
+  }
+
+  function buildDraggablePlayerCard(player) {
+    const card = document.createElement('div');
+    card.draggable = true;
+    card.dataset.playerId = player.id;
+    const isDead = player.is_active === 0;
+    card.style.cssText = `
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid ${player.color};
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-weight: 700;
+      font-size: 14px;
+      display: flex; align-items: center; gap: 8px;
+      cursor: grab;
+      user-select: none;
+      transition: all 0.15s ease;
+      ${isDead ? 'opacity: 0.5;' : ''}
+    `;
+    card.innerHTML = `
+      <span style="width: 10px; height: 10px; border-radius: 50%; background: ${player.color}; box-shadow: 0 0 6px ${player.color};"></span>
+      <span style="flex-grow: 1;">${isDead ? `<s>${player.name}</s>` : player.name}</span>
+      <span style="font-size: 11px; color: var(--text-muted);">⋮⋮</span>
+    `;
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', player.id);
+      e.dataTransfer.effectAllowed = 'move';
+      card.style.opacity = '0.35';
+    });
+    card.addEventListener('dragend', () => {
+      card.style.opacity = isDead ? '0.5' : '1';
+    });
+    return card;
+  }
+
 
   // Socket: Update Active Turn
   socket.on('turn-updated', (payload) => {
