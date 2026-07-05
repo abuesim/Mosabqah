@@ -113,41 +113,75 @@ io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
   // 1. Create Room (Admin)
-  socket.on('create-room', async ({ type, timerDuration, password, teamCount }) => {
+  socket.on('create-room', async ({ type, timerDuration, password, teamCount, roomCode, roomName }) => {
     if (password !== ADMIN_PASSWORD) {
       socket.emit('error-msg', 'رمز المرور غير صحيح');
       return;
     }
 
-    const roomCode = generateRoomCode();
+    let targetRoomCode = roomCode ? roomCode.trim().toString() : '';
+    if (!targetRoomCode) {
+      targetRoomCode = generateRoomCode();
+    } else {
+      if (!/^\d+$/.test(targetRoomCode)) {
+        socket.emit('error-msg', 'رمز الغرفة المخصص يجب أن يحتوي على أرقام فقط');
+        return;
+      }
+    }
+
+    const targetRoomName = roomName ? roomName.trim() : `مسابقة ${targetRoomCode}`;
+
     try {
-      const room = await createRoom(roomCode, type, timerDuration);
+      const room = await createRoom(targetRoomCode, type, timerDuration, targetRoomName);
       
       // If team mode, pre-populate specified teams (2, 3, or 4)
       if (type === 'group') {
         const teamsNum = parseInt(teamCount) || 4;
         
         if (teamsNum >= 2) {
-          await addPlayer(roomCode + '-red', roomCode, 'الفريق الأحمر', '#ff4757');
-          await addPlayer(roomCode + '-blue', roomCode, 'الفريق الأزرق', '#1e90ff');
+          await addPlayer(targetRoomCode + '-red', targetRoomCode, 'الفريق الأحمر', '#ff4757');
+          await addPlayer(targetRoomCode + '-blue', targetRoomCode, 'الفريق الأزرق', '#1e90ff');
         }
         if (teamsNum >= 3) {
-          await addPlayer(roomCode + '-green', roomCode, 'الفريق الأخضر', '#2ed573');
+          await addPlayer(targetRoomCode + '-green', targetRoomCode, 'الفريق الأخضر', '#2ed573');
         }
         if (teamsNum >= 4) {
-          await addPlayer(roomCode + '-yellow', roomCode, 'الفريق الأصفر', '#ffa502');
+          await addPlayer(targetRoomCode + '-yellow', targetRoomCode, 'الفريق الأصفر', '#ffa502');
         }
         
-        activeTurns[roomCode] = 0; // Starts with Red Team (index 0)
+        activeTurns[targetRoomCode] = 0; // Starts with Red Team (index 0)
+      } else {
+        delete activeTurns[targetRoomCode];
       }
 
-      askedQuestions[roomCode] = new Set();
+      askedQuestions[targetRoomCode] = new Set();
+      delete trialMode[targetRoomCode];
+      delete trialAnswers[targetRoomCode];
 
       socket.emit('room-created', room);
-      console.log(`Room created: ${roomCode} (${type}), Teams: ${teamCount || 4}`);
+      console.log(`Room created/reset: ${targetRoomCode} (${type}), Name: ${targetRoomName}, Teams: ${teamCount || 4}`);
     } catch (err) {
       socket.emit('error-msg', 'حدث خطأ أثناء إنشاء الغرفة');
       console.error(err);
+    }
+  });
+
+  // 1.5 Check Room (Player Entrance Validation)
+  socket.on('check-room', async ({ roomCode }) => {
+    const cleanCode = roomCode ? roomCode.trim().toString() : '';
+    if (!cleanCode) {
+      socket.emit('room-checked', { exists: false, roomCode });
+      return;
+    }
+    try {
+      const room = await getRoom(cleanCode);
+      if (room) {
+        socket.emit('room-checked', { exists: true, roomCode: cleanCode, name: room.name || `مسابقة ${cleanCode}` });
+      } else {
+        socket.emit('room-checked', { exists: false, roomCode: cleanCode });
+      }
+    } catch (err) {
+      socket.emit('room-checked', { exists: false, roomCode: cleanCode });
     }
   });
 

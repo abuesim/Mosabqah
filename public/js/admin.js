@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const adminPassInput = document.getElementById('admin-pass');
+  const roomNameInput = document.getElementById('room-name-input');
+  const roomCodeInput = document.getElementById('room-code-input');
   const gameTypeSelect = document.getElementById('game-type');
   const timerSecSelect = document.getElementById('timer-sec');
   const btnCreateRoom = document.getElementById('btn-create-room');
@@ -297,9 +299,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const timer = parseInt(timerSecSelect.value);
     const selectedTeamCountRadio = document.querySelector('input[name="team-count"]:checked');
     const teamCount = selectedTeamCountRadio ? parseInt(selectedTeamCountRadio.value) : 4;
+    const roomName = roomNameInput ? roomNameInput.value.trim() : '';
+    const roomCode = roomCodeInput ? roomCodeInput.value.trim() : '';
 
     if (!password) {
       showError('يرجى إدخال كلمة المرور للمتابعة');
+      return;
+    }
+
+    if (roomCode && !/^\d+$/.test(roomCode)) {
+      showError('رمز الغرفة المخصص يجب أن يحتوي على أرقام فقط');
       return;
     }
 
@@ -308,7 +317,9 @@ document.addEventListener('DOMContentLoaded', () => {
       type,
       timerDuration: timer,
       password,
-      teamCount
+      teamCount,
+      roomName,
+      roomCode
     });
   });
 

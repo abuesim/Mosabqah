@@ -57,6 +57,7 @@ export async function initDatabase() {
   await dbRun(`
     CREATE TABLE IF NOT EXISTS rooms (
       id TEXT PRIMARY KEY,
+      name TEXT,
       type TEXT NOT NULL,          -- 'individual' or 'group'
       status TEXT NOT NULL,        -- 'waiting', 'active', 'finished'
       current_question_id INTEGER,
@@ -90,6 +91,17 @@ export async function initDatabase() {
     }
   } catch (err) {
     console.error('team_id migration error:', err.message);
+  }
+
+  // Safe migration for existing databases: add name column to rooms if missing
+  try {
+    const roomsCols = await dbAll("PRAGMA table_info(rooms)");
+    if (!roomsCols.some(c => c.name === 'name')) {
+      await dbRun('ALTER TABLE rooms ADD COLUMN name TEXT');
+      console.log('Migration: Added name column to rooms table.');
+    }
+  } catch (err) {
+    console.error('rooms name migration error:', err.message);
   }
 
   await dbRun(`
@@ -290,12 +302,26 @@ export async function initDatabase() {
 }
 
 // Database helper functions
-export async function createRoom(roomId, type, timerDuration = 30) {
-  await dbRun(
-    'INSERT INTO rooms (id, type, status, timer_duration) VALUES (?, ?, ?, ?)',
-    [roomId, type, 'waiting', timerDuration]
-  );
-  return { id: roomId, type, status: 'waiting', timer_duration: timerDuration };
+export async function createRoom(roomId, type, timerDuration = 30, name = null) {
+  const existing = await getRoom(roomId);
+  const roomName = name || `مسابقة ${roomId}`;
+  if (existing) {
+    // Clean up players and answers associated with the room to start fresh
+    await dbRun('DELETE FROM users WHERE room_id = ?', [roomId]);
+    await dbRun('DELETE FROM player_answers WHERE room_id = ?', [roomId]);
+    // Reset room properties
+    await dbRun(
+      'UPDATE rooms SET name = ?, type = ?, status = ?, current_question_id = NULL, question_status = \'idle\', timer_duration = ? WHERE id = ?',
+      [roomName, type, 'waiting', timerDuration, roomId]
+    );
+    return { id: roomId, name: roomName, type, status: 'waiting', timer_duration: timerDuration };
+  } else {
+    await dbRun(
+      'INSERT INTO rooms (id, name, type, status, timer_duration) VALUES (?, ?, ?, ?, ?)',
+      [roomId, roomName, type, 'waiting', timerDuration]
+    );
+    return { id: roomId, name: roomName, type, status: 'waiting', timer_duration: timerDuration };
+  }
 }
 
 export async function getRoom(roomId) {

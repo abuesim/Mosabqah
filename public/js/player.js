@@ -33,6 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const roomCodeInput = document.getElementById('room-code');
   const playerNameInput = document.getElementById('player-name');
   const colorPicker = document.getElementById('color-picker');
+
+  // Step-by-step join fields
+  const joinStep1 = document.getElementById('join-step-1');
+  const joinStep2 = document.getElementById('join-step-2');
+  const btnCheckCode = document.getElementById('btn-check-code');
+  const btnBackToStep1 = document.getElementById('btn-back-to-step-1');
+  const validatedRoomName = document.getElementById('validated-room-name');
+  const validatedRoomCode = document.getElementById('validated-room-code');
   
   const lobbyWelcome = document.getElementById('lobby-welcome');
   const lobbyColorIndicator = document.getElementById('lobby-color-indicator');
@@ -60,16 +68,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const urlRoomCode = urlParams.get('room');
   if (urlRoomCode) {
     roomCodeInput.value = urlRoomCode;
-    // Hide the room-code input entirely (came via QR / shared link) and show a compact chip
     const roomCodeGroup = document.getElementById('room-code-group');
     const roomCodeChip = document.getElementById('room-code-chip');
     const roomCodeChipValue = document.getElementById('room-code-chip-value');
     if (roomCodeGroup) roomCodeGroup.style.display = 'none';
     if (roomCodeChip) roomCodeChip.style.display = 'block';
     if (roomCodeChipValue) roomCodeChipValue.textContent = urlRoomCode;
-    // Focus name input immediately so the player just types their name and joins
+
+    // Transition directly to Step 2 since we already have the room code
+    if (joinStep1) joinStep1.style.display = 'none';
+    if (joinStep2) joinStep2.style.display = 'block';
+    if (validatedRoomCode) validatedRoomCode.textContent = urlRoomCode;
+    if (validatedRoomName) validatedRoomName.textContent = `مسابقة ${urlRoomCode}`;
+
+    // Verify room and fetch its actual name in the background
+    socket.emit('check-room', { roomCode: urlRoomCode });
+
     setTimeout(() => playerNameInput.focus(), 100);
   }
+
+  // Pressing Enter in the code field checks the code
+  roomCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      btnCheckCode.click();
+    }
+  });
 
   // Pressing Enter in the name field submits (fast QR join flow)
   playerNameInput.addEventListener('keydown', (e) => {
@@ -120,6 +144,44 @@ document.addEventListener('DOMContentLoaded', () => {
       errorToast.style.display = 'none';
     }, 4000);
   }
+
+  // 1.5. Step-by-Step Join Event Handlers
+  if (btnCheckCode) {
+    btnCheckCode.addEventListener('click', () => {
+      const code = roomCodeInput.value.trim();
+      if (!code || code.length < 4) {
+        showError('الرجاء إدخال رمز غرفة صحيح يتكون من 4 أرقام على الأقل');
+        return;
+      }
+      socket.emit('check-room', { roomCode: code });
+    });
+  }
+
+  if (btnBackToStep1) {
+    btnBackToStep1.addEventListener('click', () => {
+      if (joinStep2) joinStep2.style.display = 'none';
+      if (joinStep1) joinStep1.style.display = 'block';
+      roomCodeInput.value = '';
+      const roomCodeGroup = document.getElementById('room-code-group');
+      const roomCodeChip = document.getElementById('room-code-chip');
+      if (roomCodeGroup) roomCodeGroup.style.display = 'block';
+      if (roomCodeChip) roomCodeChip.style.display = 'none';
+      setTimeout(() => roomCodeInput.focus(), 100);
+    });
+  }
+
+  socket.on('room-checked', ({ exists, roomCode, name }) => {
+    if (exists) {
+      if (validatedRoomCode) validatedRoomCode.textContent = roomCode;
+      if (validatedRoomName) validatedRoomName.textContent = name;
+      
+      if (joinStep1) joinStep1.style.display = 'none';
+      if (joinStep2) joinStep2.style.display = 'block';
+      setTimeout(() => playerNameInput.focus(), 100);
+    } else {
+      showError('عذراً، رقم المسابقة أو الغرفة غير موجود. يرجى التأكد من الرقم.');
+    }
+  });
 
   // 2. Join Room button click
   btnJoin.addEventListener('click', () => {
