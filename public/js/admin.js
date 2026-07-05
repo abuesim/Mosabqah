@@ -579,15 +579,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Socket: Timer expired
+  // Socket: Timer expired (either the clock ran out, or all active players answered early).
+  // The reveal button must stay enabled here — this is exactly when the admin needs to
+  // press it to confirm the correct answer and award points.
   socket.on('timer-expired', () => {
     if (activeQStatus) {
-      activeQStatus.textContent = 'انتهى الوقت المحدد للإجابة! ⌛';
+      activeQStatus.textContent = 'انتهى الوقت المحدد للإجابة! ⌛ — اضغط الزر الأخضر لاعتماد الإجابة';
       activeQStatus.style.color = 'var(--color-red)';
-    }
-    if (btnRevealAnswer) {
-      btnRevealAnswer.disabled = true;
-      btnRevealAnswer.style.opacity = '0.5';
     }
   });
 
@@ -1080,17 +1078,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderTeamTotals();
   }
-
-  // Socket: Player Answered event to increment count in active panel
-  socket.on('player-answered-count', (count) => {
-    activeQAnswers.textContent = count;
-  });
-
-  // Socket: timer-expired (countdown finishes)
-  socket.on('timer-expired', () => {
-    activeQStatus.textContent = 'انتهى وقت الإجابة!';
-    activeQStatus.style.color = 'var(--color-red)';
-  });
 
   // Reveal Answer button click
   btnRevealAnswer.addEventListener('click', () => {
