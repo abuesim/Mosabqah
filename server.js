@@ -69,6 +69,7 @@ function generateRoomCode() {
 
 // In-memory active session timers to handle countdowns safely
 const activeTimers = {};
+const scoreboardTimers = {};
 const activeTurns = {};
 // Track which questions have already been asked in each room (prevent repetition)
 const askedQuestions = {};
@@ -349,9 +350,25 @@ io.on('connection', (socket) => {
     const roomCode = socket.roomId;
     if (!roomCode || (socket.role !== 'admin' && socket.role !== 'presenter')) return;
 
+    // Clear any existing auto-hide timer for this room
+    if (scoreboardTimers[roomCode]) {
+      clearTimeout(scoreboardTimers[roomCode]);
+      delete scoreboardTimers[roomCode];
+    }
+
     await updateRoomScoreboardVisibility(roomCode, visible);
     const players = await getPlayers(roomCode);
     io.to(roomCode).emit('scoreboard-visibility-update', { visible: !!visible, players });
+
+    // If visible is set to true, start an 8-second auto-hide timer
+    if (visible) {
+      scoreboardTimers[roomCode] = setTimeout(async () => {
+        await updateRoomScoreboardVisibility(roomCode, false);
+        const freshPlayers = await getPlayers(roomCode);
+        io.to(roomCode).emit('scoreboard-visibility-update', { visible: false, players: freshPlayers });
+        delete scoreboardTimers[roomCode];
+      }, 8000);
+    }
   });
 
   // 4. Send/Show Question (Admin / Presenter) — real questions require the game to be active
