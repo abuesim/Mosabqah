@@ -78,6 +78,7 @@ export async function initDatabase() {
       is_active INTEGER DEFAULT 1,
       team_id TEXT,
       lifelines_remaining INTEGER DEFAULT 2,
+      lifelines_time_remaining INTEGER DEFAULT 2,
       streak INTEGER DEFAULT 0,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     )
@@ -93,6 +94,9 @@ export async function initDatabase() {
     }
     if (!cols.some(c => c.name === 'lifelines_remaining')) {
       await dbRun('ALTER TABLE users ADD COLUMN lifelines_remaining INTEGER DEFAULT 2');
+    }
+    if (!cols.some(c => c.name === 'lifelines_time_remaining')) {
+      await dbRun('ALTER TABLE users ADD COLUMN lifelines_time_remaining INTEGER DEFAULT 2');
     }
     if (!cols.some(c => c.name === 'streak')) {
       await dbRun('ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0');
@@ -423,13 +427,23 @@ export async function useLifeline(playerId) {
   return res.rowsAffected > 0;
 }
 
+// Atomically decrement the Time Extension lifeline count. Returns true if a lifeline was consumed,
+// false if the player had none remaining.
+export async function useTimeLifeline(playerId) {
+  const res = await client.execute({
+    sql: 'UPDATE users SET lifelines_time_remaining = lifelines_time_remaining - 1 WHERE id = ? AND lifelines_time_remaining > 0',
+    args: [playerId]
+  });
+  return res.rowsAffected > 0;
+}
+
 export async function updatePlayerStreak(playerId, streak) {
   await dbRun('UPDATE users SET streak = ? WHERE id = ?', [streak, playerId]);
 }
 
 // Reset per-game progress (lifelines + streak) for every player in a room — called on start-game
 export async function resetGameProgress(roomId) {
-  await dbRun('UPDATE users SET lifelines_remaining = 2, streak = 0 WHERE room_id = ?', [roomId]);
+  await dbRun('UPDATE users SET lifelines_remaining = 2, lifelines_time_remaining = 2, streak = 0 WHERE room_id = ?', [roomId]);
 }
 
 export async function getQuestions() {

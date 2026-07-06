@@ -303,6 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
     startRemoteTimer(timerDuration || 30, startTime || Date.now());
   });
 
+  socket.on('timer-extended', ({ remainingSeconds }) => {
+    startRemoteTimer(remainingSeconds, Date.now());
+  });
+
   socket.on('player-answered-count', (count) => {
     if (activeQAnswers) activeQAnswers.textContent = count;
   });

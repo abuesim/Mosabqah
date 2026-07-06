@@ -29,6 +29,7 @@ import {
   deleteAllQuestions,
   updateRoomScoreboardVisibility,
   useLifeline,
+  useTimeLifeline,
   updatePlayerStreak,
   resetGameProgress
 } from './database.js';
@@ -69,6 +70,7 @@ function generateRoomCode() {
 
 // In-memory active session timers to handle countdowns safely
 const activeTimers = {};
+const activeTimerEndTime = {};
 const scoreboardTimers = {};
 const activeTurns = {};
 // Track which questions have already been asked in each room (prevent repetition)
@@ -245,11 +247,15 @@ io.on('connection', (socket) => {
       if (room.current_question_id && room.question_status !== 'idle') {
         const question = await fetchQuestion(room.current_question_id);
         const answers = await getAnswersForQuestion(cleanRoomCode, room.current_question_id);
+        let timerDuration = room.timer_duration;
+        if (activeTimerEndTime[cleanRoomCode]) {
+          timerDuration = Math.max(1, Math.round((activeTimerEndTime[cleanRoomCode] - room.question_start_time) / 1000));
+        }
         socket.emit('sync-question', {
           question,
           questionStatus: room.question_status,
           answeredCount: answers.length,
-          timerDuration: room.timer_duration,
+          timerDuration,
           startTime: room.question_start_time
         });
       }
@@ -264,11 +270,15 @@ io.on('connection', (socket) => {
       if (room.current_question_id && room.question_status !== 'idle') {
         const question = await getQuestion(room.current_question_id);
         const answers = await getAnswersForQuestion(cleanRoomCode, room.current_question_id);
+        let timerDuration = room.timer_duration;
+        if (activeTimerEndTime[cleanRoomCode]) {
+          timerDuration = Math.max(1, Math.round((activeTimerEndTime[cleanRoomCode] - room.question_start_time) / 1000));
+        }
         socket.emit('sync-question', {
           question,
           questionStatus: room.question_status,
           answeredCount: answers.length,
-          timerDuration: room.timer_duration,
+          timerDuration,
           startTime: room.question_start_time
         });
       }
@@ -544,6 +554,64 @@ io.on('connection', (socket) => {
     socket.emit('lifeline-5050-result', {
       hiddenOptions,
       remaining: updatedPlayer ? updatedPlayer.lifelines_remaining : 0
+    });
+  });
+
+  // 5c. Use Time Extension Lifeline (Player, individual mode only) — adds 20 seconds to the timer.
+  // Each player gets 2 uses per game.
+  socket.on('use-lifeline-time', async () => {
+    const roomCode = socket.roomId;
+    const playerId = socket.playerId;
+    if (!roomCode || !playerId || socket.role !== 'player') return;
+
+    const room = await getRoom(roomCode);
+    if (!room || room.type !== 'individual' || room.question_status !== 'showing') {
+      socket.emit('error-msg', 'وسيلة المساعدة غير متاحة الآن');
+      return;
+    }
+    if (trialMode[roomCode]) {
+      socket.emit('error-msg', 'لا يمكن استخدام وسيلة المساعدة في السؤال التجريبي');
+      return;
+    }
+
+    // Check if there is an active timer to extend
+    if (!activeTimerEndTime[roomCode] || !activeTimers[roomCode]) {
+      socket.emit('error-msg', 'انتهى وقت السؤال بالفعل');
+      return;
+    }
+
+    const consumed = await useTimeLifeline(playerId);
+    if (!consumed) {
+      socket.emit('error-msg', 'لقد استنفدت رصيدك من وسيلة المساعدة (تمديد الوقت)');
+      return;
+    }
+
+    // Calculate new end time (add 20 seconds)
+    const oldEndTime = activeTimerEndTime[roomCode];
+    const newEndTime = oldEndTime + 20000;
+    activeTimerEndTime[roomCode] = newEndTime;
+
+    // Clear old timer and set new one
+    clearTimeout(activeTimers[roomCode]);
+    const newRemainingMs = Math.max(1, newEndTime - Date.now());
+
+    activeTimers[roomCode] = setTimeout(async () => {
+      await updateRoomQuestionStatus(roomCode, 'time_up');
+      io.to(roomCode).emit('timer-expired');
+      delete activeTimerEndTime[roomCode];
+      console.log(`Extended timer expired for room ${roomCode}`);
+    }, newRemainingMs);
+
+    // Broadcast the new remaining seconds to everyone in the room
+    const remainingSeconds = Math.round(newRemainingMs / 1000);
+    io.to(roomCode).emit('timer-extended', {
+      remainingSeconds,
+      playerName: socket.playerName || 'متسابق'
+    });
+
+    const updatedPlayer = await getPlayerById(playerId);
+    socket.emit('lifeline-time-result', {
+      remaining: updatedPlayer ? updatedPlayer.lifelines_time_remaining : 0
     });
   });
 
@@ -905,6 +973,7 @@ io.on('connection', (socket) => {
     // Clear previous timers if any
     if (activeTimers[roomCode]) {
       clearTimeout(activeTimers[roomCode]);
+      delete activeTimerEndTime[roomCode];
     }
 
     // Broadcast preparation countdown (5 seconds) to room
@@ -948,9 +1017,11 @@ io.on('connection', (socket) => {
       });
 
       // Set server-side fallback timer to mark time-up automatically
+      activeTimerEndTime[roomCode] = Date.now() + freshRoom.timer_duration * 1000;
       activeTimers[roomCode] = setTimeout(async () => {
         await updateRoomQuestionStatus(roomCode, 'time_up');
         io.to(roomCode).emit('timer-expired');
+        delete activeTimerEndTime[roomCode];
         console.log(`Timer expired for room ${roomCode}`);
       }, freshRoom.timer_duration * 1000);
       

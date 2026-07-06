@@ -8,10 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let playerDetails = null;
   let currentQuestion = null;
   let countdownInterval = null;
+  let secondsLeft = 0;
   let selectedColor = '#ff4757'; // Default selected red color
   let activeScore = 0;
   let lifelinesRemaining = 2;
+  let lifelinesTimeRemaining = 2;
   let lifelineUsedThisQuestion = false;
+  let lifelineTimeUsedThisQuestion = false;
   let currentStreak = 0;
 
   // Generate or retrieve persistent 6-digit Player ID from localStorage
@@ -71,20 +74,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnLifeline5050 = document.getElementById('btn-lifeline-5050');
   const lifelineRemainingVal = document.getElementById('lifeline-remaining-val');
+  const btnLifelineTime = document.getElementById('btn-lifeline-time');
+  const lifelineTimeRemainingVal = document.getElementById('lifeline-time-remaining-val');
   const playerStreakBadge = document.getElementById('player-streak-badge');
   const playerStreakVal = document.getElementById('player-streak-val');
 
-  // Update the 50/50 button's enabled/disabled state and label
+  // Update the lifeline buttons' enabled/disabled state and label
   function updateLifelineButtonUI(visibleOptionsCount) {
-    if (!btnLifeline5050 || !lifelineRemainingVal) return;
-    lifelineRemainingVal.textContent = lifelinesRemaining;
+    if (btnLifeline5050 && lifelineRemainingVal) {
+      lifelineRemainingVal.textContent = lifelinesRemaining;
+      const notEnoughOptions = typeof visibleOptionsCount === 'number' && visibleOptionsCount <= 2;
+      const disabled = lifelinesRemaining <= 0 || lifelineUsedThisQuestion || notEnoughOptions;
+      btnLifeline5050.disabled = disabled;
+      btnLifeline5050.style.opacity = disabled ? '0.4' : '1';
+      btnLifeline5050.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    }
 
-    const notEnoughOptions = typeof visibleOptionsCount === 'number' && visibleOptionsCount <= 2;
-    const disabled = lifelinesRemaining <= 0 || lifelineUsedThisQuestion || notEnoughOptions;
-
-    btnLifeline5050.disabled = disabled;
-    btnLifeline5050.style.opacity = disabled ? '0.4' : '1';
-    btnLifeline5050.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    if (btnLifelineTime && lifelineTimeRemainingVal) {
+      lifelineTimeRemainingVal.textContent = lifelinesTimeRemaining;
+      const disabledTime = lifelinesTimeRemaining <= 0 || lifelineTimeUsedThisQuestion;
+      btnLifelineTime.disabled = disabledTime;
+      btnLifelineTime.style.opacity = disabledTime ? '0.4' : '1';
+      btnLifelineTime.style.cursor = disabledTime ? 'not-allowed' : 'pointer';
+    }
   }
 
   function updateStreakBadgeUI() {
@@ -260,6 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     playerDetails = player;
     activeScore = player.score;
     lifelinesRemaining = (player.lifelines_remaining !== undefined && player.lifelines_remaining !== null) ? player.lifelines_remaining : 2;
+    lifelinesTimeRemaining = (player.lifelines_time_remaining !== undefined && player.lifelines_time_remaining !== null) ? player.lifelines_time_remaining : 2;
     currentStreak = player.streak || 0;
     updateLifelineButtonUI();
     updateStreakBadgeUI();
@@ -290,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeScore = self.score;
         playerScoreVal.textContent = activeScore;
         lifelinesRemaining = (self.lifelines_remaining !== undefined && self.lifelines_remaining !== null) ? self.lifelines_remaining : lifelinesRemaining;
+        lifelinesTimeRemaining = (self.lifelines_time_remaining !== undefined && self.lifelines_time_remaining !== null) ? self.lifelines_time_remaining : lifelinesTimeRemaining;
         currentStreak = self.streak || 0;
         updateLifelineButtonUI();
         updateStreakBadgeUI();
@@ -473,15 +487,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Reset the 50/50 lifeline for the new question (not usable during trial rounds)
+    // Reset the lifelines for the new question (not usable during trial rounds)
     lifelineUsedThisQuestion = false;
+    lifelineTimeUsedThisQuestion = false;
     if (btnLifeline5050) {
       btnLifeline5050.style.display = isTrial ? 'none' : 'inline-block';
+    }
+    if (btnLifelineTime) {
+      btnLifelineTime.style.display = isTrial ? 'none' : 'inline-block';
     }
     updateLifelineButtonUI(visibleOptionsCount);
 
     // Start Timer
-    let secondsLeft = timerDuration;
+    secondsLeft = timerDuration;
     timerText.textContent = secondsLeft;
     timerBar.style.width = '100%';
     timerBar.style.transition = 'none';
@@ -563,6 +581,36 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
       }
     });
+  });
+
+  // Time Extension Lifeline button click
+  if (btnLifelineTime) {
+    btnLifelineTime.addEventListener('click', () => {
+      if (!currentQuestion || btnLifelineTime.disabled) return;
+      socket.emit('use-lifeline-time', { questionId: currentQuestion.id });
+    });
+  }
+
+  // Socket: Time Extension lifeline result
+  socket.on('lifeline-time-result', ({ remaining }) => {
+    lifelineTimeUsedThisQuestion = true;
+    lifelinesTimeRemaining = remaining;
+    updateLifelineButtonUI();
+  });
+
+  // Socket: Room timer was extended by someone
+  socket.on('timer-extended', ({ remainingSeconds, playerName }) => {
+    secondsLeft = remainingSeconds;
+    timerText.textContent = secondsLeft;
+
+    // Reset the progress bar animation to animate over new remaining duration
+    timerBar.style.width = '100%';
+    timerBar.style.transition = 'none';
+    timerBar.getBoundingClientRect(); // force reflow
+    timerBar.style.transition = `width ${secondsLeft}s linear`;
+    timerBar.style.width = '0%';
+
+    showSuccess(`قام ${playerName} بتمديد الوقت لـ 20 ثانية إضافية! ⏱️`);
   });
 
   const correctAnswerBox = document.getElementById('correct-answer-box');

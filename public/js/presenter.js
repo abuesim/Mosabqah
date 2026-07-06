@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // State variables
   let currentRoomId = null;
   let countdownInterval = null;
+  let secondsLeft = 0;
 
   // DOM Elements
   const screens = {
@@ -629,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
     qTimerBar.style.width = '0%';
 
     clearInterval(countdownInterval);
-    let secondsLeft = timerDuration;
+    secondsLeft = timerDuration;
     countdownInterval = setInterval(() => {
       secondsLeft--;
       qTimerText.textContent = Math.max(0, secondsLeft);
@@ -644,6 +645,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
 
     showScreen('question');
+  });
+
+  // Socket: Room timer extended
+  socket.on('timer-extended', ({ remainingSeconds }) => {
+    secondsLeft = remainingSeconds;
+    qTimerText.textContent = secondsLeft;
+
+    // Reset progress bar animation
+    qTimerBar.style.width = '100%';
+    qTimerBar.style.transition = 'none';
+    qTimerBar.getBoundingClientRect(); // force reflow
+    qTimerBar.style.transition = `width ${secondsLeft}s linear`;
+    qTimerBar.style.width = '0%';
   });
 
   // Socket: Update Answered count
