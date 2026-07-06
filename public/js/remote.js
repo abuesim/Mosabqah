@@ -313,7 +313,12 @@ document.addEventListener('DOMContentLoaded', () => {
       activeQStatus.style.color = 'var(--color-green)';
     }
     if (btnRemoteConfirmAnswer) {
-      btnRemoteConfirmAnswer.style.display = 'none';
+      btnRemoteConfirmAnswer.style.display = 'block';
+      btnRemoteConfirmAnswer.disabled = true;
+      btnRemoteConfirmAnswer.textContent = 'تم كشف الإجابة والنتيجة ✅';
+      btnRemoteConfirmAnswer.style.background = 'rgba(255,255,255,0.05)';
+      btnRemoteConfirmAnswer.style.color = 'var(--text-muted)';
+      btnRemoteConfirmAnswer.style.border = '1px solid var(--glass-border)';
     }
     clearInterval(remoteTimerInterval);
     updateStartEndGameButton();
@@ -325,7 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
       activeQStatus.style.color = 'var(--color-red)';
     }
     if (btnRemoteConfirmAnswer) {
-      btnRemoteConfirmAnswer.style.display = 'none';
+      btnRemoteConfirmAnswer.style.display = 'block';
+      btnRemoteConfirmAnswer.disabled = false;
+      btnRemoteConfirmAnswer.textContent = 'كشف الإجابة والنتيجة 🔔';
+      btnRemoteConfirmAnswer.style.background = 'linear-gradient(135deg, var(--color-green), #10ac84)';
+      btnRemoteConfirmAnswer.style.color = '#fff';
     }
     clearInterval(remoteTimerInterval);
     updateStartEndGameButton();
@@ -349,13 +358,21 @@ document.addEventListener('DOMContentLoaded', () => {
         btnRemoteConfirmAnswer.style.display = 'block';
         btnRemoteConfirmAnswer.disabled = false;
         btnRemoteConfirmAnswer.textContent = (questionStatus === 'showing_trial') ? 'اعتماد الإجابة (تجريبي) 🎯' : 'اعتماد وكشف الإجابة 🔔';
+        btnRemoteConfirmAnswer.style.background = 'linear-gradient(135deg, var(--color-green), #10ac84)';
+        btnRemoteConfirmAnswer.style.color = '#fff';
+        btnRemoteConfirmAnswer.style.border = 'none';
       }
     } else if (questionStatus === 'revealed') {
       const correctOptText = question['option' + question.correct_option] || '';
       activeQStatus.textContent = `تم كشف الإجابة: (${correctOptText}) ✅`;
       activeQStatus.style.color = 'var(--color-green)';
       if (btnRemoteConfirmAnswer) {
-        btnRemoteConfirmAnswer.style.display = 'none';
+        btnRemoteConfirmAnswer.style.display = 'block';
+        btnRemoteConfirmAnswer.disabled = true;
+        btnRemoteConfirmAnswer.textContent = 'تم كشف الإجابة والنتيجة ✅';
+        btnRemoteConfirmAnswer.style.background = 'rgba(255,255,255,0.05)';
+        btnRemoteConfirmAnswer.style.color = 'var(--text-muted)';
+        btnRemoteConfirmAnswer.style.border = '1px solid var(--glass-border)';
       }
       clearInterval(remoteTimerInterval);
       updateStartEndGameButton();
@@ -363,7 +380,12 @@ document.addEventListener('DOMContentLoaded', () => {
       activeQStatus.textContent = 'انتهى وقت الإجابة! ⌛';
       activeQStatus.style.color = 'var(--color-red)';
       if (btnRemoteConfirmAnswer) {
-        btnRemoteConfirmAnswer.style.display = 'none';
+        btnRemoteConfirmAnswer.style.display = 'block';
+        btnRemoteConfirmAnswer.disabled = false;
+        btnRemoteConfirmAnswer.textContent = 'كشف الإجابة والنتيجة 🔔';
+        btnRemoteConfirmAnswer.style.background = 'linear-gradient(135deg, var(--color-green), #10ac84)';
+        btnRemoteConfirmAnswer.style.color = '#fff';
+        btnRemoteConfirmAnswer.style.border = 'none';
       }
       clearInterval(remoteTimerInterval);
       updateStartEndGameButton();
