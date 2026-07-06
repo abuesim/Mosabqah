@@ -817,10 +817,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       
       // Determine difficulty border color
-      const diff = (q.difficulty || 'medium').toLowerCase();
+      const diffKey = (q.difficulty || 'medium').trim().toLowerCase();
       let borderStyle = 'border-right: 4px solid var(--color-yellow);'; // default medium
-      if (diff === 'easy') borderStyle = 'border-right: 4px solid var(--color-green);';
-      else if (diff === 'hard') borderStyle = 'border-right: 4px solid var(--color-red);';
+      if (diffKey === 'easy' || diffKey === 'سهل' || diffKey === 'سهلة') borderStyle = 'border-right: 4px solid var(--color-green);';
+      else if (diffKey === 'hard' || diffKey === 'صعب' || diffKey === 'صعبة') borderStyle = 'border-right: 4px solid var(--color-red);';
 
       card.style.cssText = `
         background: rgba(255, 255, 255, 0.04);
@@ -835,24 +835,53 @@ document.addEventListener('DOMContentLoaded', () => {
         ${isAsked ? 'opacity: 0.45; filter: grayscale(0.6);' : ''}
       `;
 
-      // Determine Category badge
-      const cat = (q.category || 'general').toLowerCase();
-      let catBadgeHtml = '<span style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.15);">🌐 عام</span>';
-      if (cat === 'islamic') {
-        catBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">🕌 إسلامي</span>';
-      } else if (cat === 'riddles') {
-        catBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">🧩 لغز</span>';
-      } else if (cat === 'science') {
-        catBadgeHtml = '<span style="background: rgba(112, 161, 255, 0.15); color: #70a1ff; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(112, 161, 255, 0.3);">🔬 علوم</span>';
-      }
+      // Dictionary maps for categories (supports both English and Arabic values)
+      const categoryMap = {
+        'islamic': { text: '🕌 إسلامية', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+        'islam': { text: '🕌 إسلامية', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+        'إسلامي': { text: '🕌 إسلامية', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+        'إسلامية': { text: '🕌 إسلامية', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
 
-      // Determine Difficulty badge
-      let diffBadgeHtml = '<span style="background: rgba(255, 165, 2, 0.15); color: #ffa502; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 165, 2, 0.3);">متوسط 🟡</span>';
-      if (diff === 'easy') {
-        diffBadgeHtml = '<span style="background: rgba(46, 213, 115, 0.15); color: #2ed573; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(46, 213, 115, 0.3);">سهل 🟢</span>';
-      } else if (diff === 'hard') {
-        diffBadgeHtml = '<span style="background: rgba(255, 71, 87, 0.15); color: #ff4757; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255, 71, 87, 0.3);">صعب 🔴</span>';
-      }
+        'riddles': { text: '🧩 ألغاز', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'riddle': { text: '🧩 ألغاز', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'لغز': { text: '🧩 ألغاز', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'ألعاب': { text: '🧩 ألغاز', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'ألغاز': { text: '🧩 ألغاز', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+
+        'science': { text: '🔬 علوم', bg: 'rgba(112, 161, 255, 0.15)', color: '#70a1ff', border: 'rgba(112, 161, 255, 0.3)' },
+        'علوم': { text: '🔬 علوم', bg: 'rgba(112, 161, 255, 0.15)', color: '#70a1ff', border: 'rgba(112, 161, 255, 0.3)' },
+        'ثقافة': { text: '🔬 علوم', bg: 'rgba(112, 161, 255, 0.15)', color: '#70a1ff', border: 'rgba(112, 161, 255, 0.3)' },
+
+        'family': { text: '👪 عائلية', bg: 'rgba(235, 77, 75, 0.15)', color: '#eb4d4b', border: 'rgba(235, 77, 75, 0.3)' },
+        'عائلي': { text: '👪 عائلية', bg: 'rgba(235, 77, 75, 0.15)', color: '#eb4d4b', border: 'rgba(235, 77, 75, 0.3)' },
+        'عائلية': { text: '👪 عائلية', bg: 'rgba(235, 77, 75, 0.15)', color: '#eb4d4b', border: 'rgba(235, 77, 75, 0.3)' },
+
+        'general': { text: '🌐 عامة', bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', border: 'rgba(255, 255, 255, 0.15)' },
+        'general_knowledge': { text: '🌐 عامة', bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', border: 'rgba(255, 255, 255, 0.15)' },
+        'عام': { text: '🌐 عامة', bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', border: 'rgba(255, 255, 255, 0.15)' },
+        'عامة': { text: '🌐 عامة', bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', border: 'rgba(255, 255, 255, 0.15)' }
+      };
+
+      const difficultyMap = {
+        'easy': { text: 'سهل 🟢', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+        'سهل': { text: 'سهل 🟢', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+        'سهلة': { text: 'سهل 🟢', bg: 'rgba(46, 213, 115, 0.15)', color: '#2ed573', border: 'rgba(46, 213, 115, 0.3)' },
+
+        'medium': { text: 'متوسط 🟡', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'متوسط': { text: 'متوسط 🟡', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+        'متوسطة': { text: 'متوسط 🟡', bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' },
+
+        'hard': { text: 'صعب 🔴', bg: 'rgba(255, 71, 87, 0.15)', color: '#ff4757', border: 'rgba(255, 71, 87, 0.3)' },
+        'صعب': { text: 'صعب 🔴', bg: 'rgba(255, 71, 87, 0.15)', color: '#ff4757', border: 'rgba(255, 71, 87, 0.3)' },
+        'صعبة': { text: 'صعب 🔴', bg: 'rgba(255, 71, 87, 0.15)', color: '#ff4757', border: 'rgba(255, 71, 87, 0.3)' }
+      };
+
+      const catKey = (q.category || 'general').trim().toLowerCase();
+      const catStyle = categoryMap[catKey] || { text: `🌐 ${q.category || 'عام'}`, bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-secondary)', border: 'rgba(255, 255, 255, 0.15)' };
+      const catBadgeHtml = `<span style="background: ${catStyle.bg}; color: ${catStyle.color}; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid ${catStyle.border || 'rgba(255, 255, 255, 0.15)'};">${catStyle.text}</span>`;
+
+      const diffStyle = difficultyMap[diffKey] || { text: `${q.difficulty || 'متوسط'} 🟡`, bg: 'rgba(255, 165, 2, 0.15)', color: '#ffa502', border: 'rgba(255, 165, 2, 0.3)' };
+      const diffBadgeHtml = `<span style="background: ${diffStyle.bg}; color: ${diffStyle.color}; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid ${diffStyle.border || 'rgba(255, 165, 2, 0.3)'};">${diffStyle.text}</span>`;
 
       const askedBadge = isAsked
         ? '<span style="background: var(--color-red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-inline-start: 6px;">✓ تم عرضه</span>'
