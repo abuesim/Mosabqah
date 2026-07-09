@@ -1,75 +1,99 @@
 import Link from 'next/link';
-import { Trophy, ShieldCheck, Monitor, Sparkles } from 'lucide-react';
+import { Trophy, ShieldCheck, Monitor, Gamepad2 } from 'lucide-react';
+import Background from '@/components/ui/Background';
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-purple-950 to-slate-950 text-slate-100 font-sans">
-      <div className="w-full max-w-lg p-10 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl relative text-center space-y-8">
-        {/* Decorative glows */}
-        <div className="absolute -top-16 -left-16 w-36 h-36 bg-purple-500/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-16 -right-16 w-36 h-36 bg-indigo-500/20 rounded-full blur-3xl" />
-
-        {/* Title */}
-        <div className="space-y-3 relative">
-          <div className="inline-flex p-4 rounded-full bg-purple-500/10 border border-purple-500/20 mb-2">
-            <Trophy className="w-12 h-12 text-purple-400 animate-bounce" />
+    <Background className="grid place-items-center p-4 md:p-6">
+      <div className="anim-rise w-full max-w-xl">
+        {/* Hero */}
+        <div className="mb-10 text-center">
+          <div className="anim-float mx-auto mb-6 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon-strong)]">
+            <Trophy className="h-10 w-10 text-white" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-indigo-300 to-purple-400">
+          <h1 className="font-display text-4xl font-extrabold text-gradient md:text-5xl">
             مُسَابَقَة عَصُومِي
           </h1>
-          <p className="text-slate-400 text-sm md:text-base mt-2">
+          <p className="mx-auto mt-3 max-w-md text-sm text-ink-mute md:text-base">
             المنصة التفاعلية المتكاملة لإدارة التحديات والمسابقات العائلية بالوقت الفعلي
           </p>
         </div>
 
-        {/* Portal Options */}
-        <div className="flex flex-col gap-4 relative">
-          {/* Option 1: Player client */}
-          <Link
+        {/* Portal cards */}
+        <div className="flex flex-col gap-4">
+          <PortalCard
             href="/player"
-            className="p-5 rounded-2xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 border border-purple-500/20 hover:border-purple-500/40 transition-all flex items-center justify-between text-right"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-purple-500/15 text-purple-300">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-slate-100 text-sm md:text-base">دخول كمتسابق 🎮</h4>
-                <p className="text-slate-400 text-xs mt-1">انضم إلى الجلسة النشطة وأجب عن الأسئلة من هاتفك</p>
-              </div>
-            </div>
-          </Link>
-
-          {/* Option 2: Presenter auth portal */}
-          <Link
+            icon={<Gamepad2 className="h-6 w-6" />}
+            title="دخول كمتسابق"
+            desc="انضم إلى الجلسة النشطة وأجب عن الأسئلة من هاتفك"
+            tone="neon"
+          />
+          <PortalCard
             href="/dashboard"
-            className="p-5 rounded-2xl bg-gradient-to-r from-slate-900/60 to-slate-900/40 hover:from-slate-900/80 hover:to-slate-900/60 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between text-right"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-indigo-500/15 text-indigo-300">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-slate-100 text-sm md:text-base">لوحة تحكم مقدم اللعبة 🎙️</h4>
-                <p className="text-slate-400 text-xs mt-1">سجل الدخول لإدارة بنك الأسئلة المركزي والتحكم بجلساتك</p>
-              </div>
-            </div>
-          </Link>
+            icon={<ShieldCheck className="h-6 w-6" />}
+            title="لوحة تحكم مقدم اللعبة"
+            desc="سجل الدخول لإدارة بنك الأسئلة المركزي والتحكم بجلساتك"
+            tone="cyan"
+          />
 
-          {/* Option 3: TV Display Screen instructions */}
-          <div className="p-5 rounded-2xl bg-slate-900/30 border border-white/5 text-slate-400 text-xs text-center">
-            لعرض النتيجة والأسئلة للجمهور على شاشة التلفزيون الكبيرة، يرجى التوجه إلى الرابط التالي مع كود الغرفة:
-            <div className="mt-2 font-mono font-bold text-slate-300 select-all">
-              /tv?code=رمز_الغرفة
+          {/* TV hint */}
+          <div className="glass flex items-center gap-4 rounded-[var(--radius-card)] p-5 text-right">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gold/10 text-gold">
+              <Monitor className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-ink">شاشة التلفزيون للجمهور</p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                لعرض الأسئلة والنتيجة على الشاشة الكبيرة، استخدم الرابط مع كود الغرفة:
+              </p>
+              <code dir="ltr" className="mt-2 inline-block rounded-lg border border-line bg-void/60 px-3 py-1 font-display text-xs font-bold text-gold select-all">
+                /tv?code=XXXX
+              </code>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="text-[10px] text-slate-500 relative">
+        <p className="mt-8 text-center text-[11px] text-ink-faint">
           الإصدار 2.5.0 SaaS • مدعوم بـ Next.js و Supabase Realtime
+        </p>
+      </div>
+    </Background>
+  );
+}
+
+function PortalCard({
+  href,
+  icon,
+  title,
+  desc,
+  tone,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  tone: 'neon' | 'cyan';
+}) {
+  const toneClasses =
+    tone === 'neon'
+      ? 'from-neon/15 to-neon-deep/5 border-neon/20 hover:border-neon/40 text-neon-bright'
+      : 'from-cyan/15 to-cyan-deep/5 border-cyan/20 hover:border-cyan/40 text-cyan';
+
+  return (
+    <Link
+      href={href}
+      className={`group glass rounded-[var(--radius-card)] border bg-gradient-to-l p-5 transition-all duration-300 hover:shadow-[var(--shadow-neon)] ${toneClasses}`}
+    >
+      <div className="flex items-center gap-4">
+        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/5 ${tone === 'neon' ? 'text-neon-bright' : 'text-cyan'} transition-transform group-hover:scale-110`}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-base font-extrabold text-ink">{title}</h4>
+          <p className="mt-0.5 text-xs text-ink-mute">{desc}</p>
         </div>
       </div>
-    </main>
+    </Link>
   );
 }

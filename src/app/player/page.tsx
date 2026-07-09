@@ -3,8 +3,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { ShieldCheck, User, Sparkles, KeyRound, Clock, Zap, CheckCircle, XCircle, Trophy } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ShieldCheck, User, KeyRound, Clock, CheckCircle, XCircle, Trophy, Scissors, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import Background from '@/components/ui/Background';
+import Button from '@/components/ui/Button';
+import { Field, Input } from '@/components/ui/Input';
 
 import { Suspense } from 'react';
 
@@ -17,7 +21,7 @@ function PlayerPageContent() {
   const [roomCode, setRoomCode] = useState(urlRoomCode || '');
   const [session, setSession] = useState<any>(null);
   const [playerName, setPlayerName] = useState('');
-  const [playerColor, setPlayerColor] = useState('#ff4757');
+  const [playerColor, setPlayerColor] = useState('#22d3ee');
   const [player, setPlayer] = useState<any>(null);
 
   // Game States
@@ -38,20 +42,20 @@ function PlayerPageContent() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
 
-  const colors = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#9b59b6', '#fd79a8'];
+  // Neon player palette (vibrant)
+  const colors = ['#22d3ee', '#a855f7', '#f87171', '#4ade80', '#fbbf24', '#e879f9'];
 
-  // Auto verify if room code is in url
   useEffect(() => {
     if (urlRoomCode) {
       handleVerifyRoom();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlRoomCode]);
 
   // Realtime Session and Player subscriptions
   useEffect(() => {
     if (!player?.id || !session?.id) return;
 
-    // 1. Subscribe to Session Updates
     const sessionChannel = supabase
       .channel(`player-session-${session.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` }, (payload) => {
@@ -60,7 +64,6 @@ function PlayerPageContent() {
         setQuestionStatus(newSess.question_status);
 
         if (newSess.question_status === 'showing') {
-          // New Question Started
           setHasAnswered(false);
           setChosenOption(null);
           setIsCorrect(null);
@@ -72,7 +75,6 @@ function PlayerPageContent() {
       })
       .subscribe();
 
-    // 2. Subscribe to Player Score updates
     const playerChannel = supabase
       .channel(`player-self-${player.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'players', filter: `id=eq.${player.id}` }, (payload) => {
@@ -88,6 +90,7 @@ function PlayerPageContent() {
       supabase.removeChannel(playerChannel);
       stopTimer();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player?.id, session?.id]);
 
   const handleVerifyRoom = async () => {
@@ -103,8 +106,6 @@ function PlayerPageContent() {
 
   const handleJoinGame = async () => {
     if (!playerName.trim()) return;
-
-    // Check if player name already taken in this session
     const { data: existingPlayer } = await supabase
       .from('players')
       .select('*')
@@ -113,14 +114,12 @@ function PlayerPageContent() {
       .single();
 
     if (existingPlayer) {
-      // Re-link to existing player identity (localStorage backup)
       setPlayer(existingPlayer);
       setStreak(existingPlayer.streak || 0);
       setStep(3);
       return;
     }
 
-    // Register new player
     const { data: newPlayer, error } = await supabase
       .from('players')
       .insert({
@@ -140,7 +139,6 @@ function PlayerPageContent() {
       alert(error.message);
       return;
     }
-
     setPlayer(newPlayer);
     setStep(3);
   };
@@ -178,7 +176,6 @@ function PlayerPageContent() {
 
   const handleSubmitAnswer = async (optIdx: number) => {
     if (hasAnswered || questionStatus !== 'showing' || !currentQuestion) return;
-
     setHasAnswered(true);
     setChosenOption(optIdx);
 
@@ -204,7 +201,6 @@ function PlayerPageContent() {
   const revealAnswer = async () => {
     stopTimer();
     if (!currentQuestion || !player) return;
-
     const { data: answer } = await supabase
       .from('player_answers')
       .select('*')
@@ -216,294 +212,270 @@ function PlayerPageContent() {
     if (answer) {
       setIsCorrect(answer.is_correct);
       if (answer.is_correct) {
-        confetti({ particleCount: 30, spread: 40 });
+        confetti({ particleCount: 40, spread: 50, origin: { y: 0.5 } });
       }
     } else {
-      setIsCorrect(false); // No answer submitted
+      setIsCorrect(false);
     }
   };
 
-  // ==========================================
-  // LIFELINES ACTION HANDLERS
-  // ==========================================
-
+  // LIFELINES (logic unchanged)
   const handleUse5050 = async () => {
     if (!currentQuestion || lifelinesRemaining <= 0 || hasAnswered) return;
-
-    // Pick 2 wrong option indices to hide
     const wrongOptions = [1, 2, 3, 4].filter(i => i !== currentQuestion.correct_option);
-    // Shuffle and pick 2
     const toHide = wrongOptions.sort(() => 0.5 - Math.random()).slice(0, 2);
-
     setHiddenOptions(toHide);
     setLifelinesRemaining(prev => prev - 1);
-
-    // Update in Database
-    await supabase
-      .from('players')
-      .update({ lifelines_remaining: lifelinesRemaining - 1 })
-      .eq('id', player.id);
+    await supabase.from('players').update({ lifelines_remaining: lifelinesRemaining - 1 }).eq('id', player.id);
   };
 
   const handleUseTimeLifeline = async () => {
     if (lifelinesTimeRemaining <= 0 || questionStatus !== 'showing') return;
-
-    // Broadcast timer extension to the room (Update session start time or timer duration)
-    // For simplicity, we add 20 seconds to the current room timer
     const newTimerVal = session.timer_duration + 20;
-
-    await supabase
-      .from('sessions')
-      .update({ timer_duration: newTimerVal })
-      .eq('id', session.id);
-
+    await supabase.from('sessions').update({ timer_duration: newTimerVal }).eq('id', session.id);
     setLifelinesTimeRemaining(prev => prev - 1);
-
-    // Update in Database
-    await supabase
-      .from('players')
-      .update({ lifelines_time_remaining: lifelinesTimeRemaining - 1 })
-      .eq('id', player.id);
-
-    alert('تم تمديد الوقت لـ 20 ثانية إضافية! ⏱️');
+    await supabase.from('players').update({ lifelines_time_remaining: lifelinesTimeRemaining - 1 }).eq('id', player.id);
+    setSecondsLeft(prev => prev + 20);
   };
 
+  const optionLabels = ['A', 'B', 'C', 'D'];
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-purple-950 to-slate-950 text-slate-100 font-sans">
-      
+    <Background className="grid min-h-screen place-items-center p-4">
       {/* STEP 1: VERIFY ROOM CODE */}
       {step === 1 && (
-        <div className="w-full max-w-sm p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl relative">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300">
-              انضم للمسابقة 🏆
-            </h1>
-            <p className="text-slate-400 text-xs mt-2">اكتب رمز الغرفة المكون من 4 أرقام للانضمام لجلسة اللعب</p>
+        <div className="anim-rise w-full max-w-sm">
+          <div className="mb-7 text-center">
+            <div className="anim-float mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon-strong)]">
+              <ShieldCheck className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-gradient">انضم للمسابقة</h1>
+            <p className="mt-2 text-xs text-ink-mute">اكتب رمز الغرفة المكون من 4 أرقام للانضمام لجلسة اللعب</p>
           </div>
 
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">رمز الغرفة</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <KeyRound className="w-5 h-5" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="1234"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/60 border border-white/10 focus:border-purple-500 outline-none text-center font-mono font-bold tracking-widest text-lg"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleVerifyRoom}
-              className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all"
-            >
-              التحقق من الرمز 🔍
-            </button>
+          <div className="glass-strong rounded-[var(--radius-card)] p-7 shadow-[var(--shadow-neon)]">
+            <Field label="رمز الغرفة">
+              <Input
+                type="text"
+                placeholder="••••"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value)}
+                icon={<KeyRound className="h-5 w-5" />}
+                className="text-center font-display text-2xl font-extrabold tracking-[0.4em]"
+              />
+            </Field>
+            <Button variant="primary" size="lg" fullWidth className="mt-5" onClick={handleVerifyRoom}>
+              التحقق من الرمز
+            </Button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: REGISTER PROFILE (NAME / COLOR) */}
+      {/* STEP 2: REGISTER */}
       {step === 2 && session && (
-        <div className="w-full max-w-sm p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-bold text-slate-200">أهلاً بك في: {session.title}</h2>
-            <p className="text-slate-400 text-xs mt-1">اكتب اسمك للمشاركة في المسابقة</p>
+        <div className="anim-rise w-full max-w-sm">
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold text-ink">أهلاً بك في: {session.title}</h2>
+            <p className="mt-1 text-xs text-ink-mute">اكتب اسمك للمشاركة في المسابقة</p>
           </div>
 
-          <div className="space-y-5 text-sm">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">اسم المتسابق</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <User className="w-5 h-5" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="اكتب اسمك هنا..."
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/60 border border-white/10 focus:border-purple-500 outline-none"
-                />
-              </div>
-            </div>
+          <div className="glass-strong rounded-[var(--radius-card)] p-7 space-y-5 shadow-[var(--shadow-neon)]">
+            <Field label="اسم المتسابق">
+              <Input
+                type="text"
+                placeholder="اكتب اسمك هنا..."
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                icon={<User className="h-5 w-5" />}
+              />
+            </Field>
 
-            {/* Color selection */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 block">اختر لونك المفضل</label>
+            <div>
+              <label className="mb-2 block text-xs font-semibold text-ink-soft">اختر لونك المفضل</label>
               <div className="flex justify-center gap-3">
                 {colors.map(c => (
                   <button
                     key={c}
+                    type="button"
                     onClick={() => setPlayerColor(c)}
-                    className="w-8 h-8 rounded-full border-2 transition-all"
-                    style={{
-                      backgroundColor: c,
-                      borderColor: playerColor === c ? '#fff' : 'transparent',
-                      transform: playerColor === c ? 'scale(1.15)' : 'none'
-                    }}
+                    className={cn(
+                      'h-9 w-9 cursor-pointer rounded-full border-2 transition-all',
+                      playerColor === c ? 'scale-115 border-white shadow-lg' : 'border-transparent opacity-70 hover:opacity-100'
+                    )}
+                    style={{ backgroundColor: c, boxShadow: playerColor === c ? `0 0 18px ${c}` : undefined }}
+                    aria-label={`لون ${c}`}
                   />
                 ))}
               </div>
             </div>
 
-            <button
-              onClick={handleJoinGame}
-              className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all mt-4"
-            >
-              دخول المسابقة 🎮
-            </button>
+            <Button variant="primary" size="lg" fullWidth onClick={handleJoinGame}>دخول المسابقة</Button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: CONTESTANT GAME HUD */}
+      {/* STEP 3: GAME HUD */}
       {step === 3 && player && session && (
-        <div className="w-full max-w-md flex flex-col space-y-6">
-          
-          {/* Header HUD Navbar */}
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+        <div className="flex w-full max-w-md flex-col gap-4">
+          {/* HUD header */}
+          <div className="glass flex items-center justify-between rounded-2xl p-3.5">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: player.color }} />
-              <span className="font-bold text-sm text-slate-200">{player.name}</span>
+              <span className="h-3 w-3 animate-pulse rounded-full" style={{ backgroundColor: player.color, boxShadow: `0 0 10px ${player.color}` }} />
+              <span className="text-sm font-bold text-ink">{player.name}</span>
             </div>
-
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-extrabold text-xs">
-                ⭐ {player.score} نقطة
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-1 font-display text-xs font-extrabold text-gold">
+                {player.score}
               </span>
               {streak >= 3 && (
-                <span className="text-xs text-orange-400 font-bold">🔥 {streak} متتالي</span>
+                <span className="font-display text-xs font-bold text-orange-400">🔥 {streak}</span>
               )}
             </div>
           </div>
 
-          {/* Lifelines Bar */}
+          {/* Lifelines */}
           {session.status === 'active' && questionStatus === 'showing' && !hasAnswered && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={handleUse5050}
                 disabled={lifelinesRemaining <= 0}
-                className="py-3 rounded-xl bg-slate-900/60 border border-white/10 hover:bg-slate-900 text-xs font-bold text-slate-200 transition-all disabled:opacity-40"
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-void-2/60 py-3 text-xs font-bold text-ink-soft transition-all hover:border-magenta/40 hover:text-magenta disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ✂️ حذف إجابتين ({lifelinesRemaining})
+                <Scissors className="h-4 w-4" />
+                حذف إجابتين ({lifelinesRemaining})
               </button>
               <button
                 onClick={handleUseTimeLifeline}
                 disabled={lifelinesTimeRemaining <= 0}
-                className="py-3 rounded-xl bg-slate-900/60 border border-white/10 hover:bg-slate-900 text-xs font-bold text-slate-200 transition-all disabled:opacity-40"
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-void-2/60 py-3 text-xs font-bold text-ink-soft transition-all hover:border-cyan/40 hover:text-cyan disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ⏱️ +20 ثانية ({lifelinesTimeRemaining})
+                <PlusCircle className="h-4 w-4" />
+                +20 ثانية ({lifelinesTimeRemaining})
               </button>
             </div>
           )}
 
-          {/* MAIN SCREEN PANEL */}
-          <div className="p-8 rounded-2xl bg-white/5 border border-white/10 shadow-2xl flex flex-col justify-center min-h-[300px]">
-            {/* LOBBY / WAITING SCREEN */}
+          {/* Main panel */}
+          <div className="glass-strong flex min-h-[320px] flex-col justify-center rounded-[var(--radius-card)] p-6 shadow-[var(--shadow-neon)]">
+            {/* WAITING */}
             {session.status === 'waiting' && (
-              <div className="text-center space-y-4">
-                <Sparkles className="w-12 h-12 text-purple-400 mx-auto animate-spin" />
-                <h3 className="text-xl font-bold text-slate-200">بانتظار بدء التحدي...</h3>
-                <p className="text-slate-400 text-xs">عند قيام المقدم بطرح السؤال الأول، ستظهر خيارات الإجابة هنا فوراً.</p>
+              <div className="anim-rise space-y-4 text-center">
+                <Sparkles className="anim-float mx-auto h-12 w-12 text-neon-bright" />
+                <h3 className="text-lg font-bold text-ink">بانتظار بدء التحدي...</h3>
+                <p className="text-xs text-ink-mute">عند قيام المقدم بطرح السؤال الأول، ستظهر خيارات الإجابة هنا فوراً.</p>
               </div>
             )}
 
-            {/* ACTIVE PLAY: QUESTIONS OPTION BUTTONS */}
+            {/* ACTIVE */}
             {session.status === 'active' && currentQuestion && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {questionStatus === 'showing' && (
-                  <div className="space-y-5">
-                    {/* Timer */}
-                    <div className="flex items-center justify-center gap-2 text-purple-400 font-extrabold text-sm">
-                      <Clock className="w-4 h-4 animate-pulse" />
-                      <span>{secondsLeft} ثانية متبقية</span>
+                  <>
+                    {/* Neon timer */}
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-2 text-neon-bright">
+                        <Clock className={cn('h-4 w-4', secondsLeft <= 5 && 'anim-pulse-neon text-danger-bright')} />
+                        <span className={cn('font-display text-2xl font-extrabold tabular', secondsLeft <= 5 ? 'text-danger-bright' : 'text-ink')}>
+                          {secondsLeft}
+                        </span>
+                        <span className="text-xs text-ink-mute">ثانية</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all duration-1000 ease-linear',
+                            secondsLeft <= 5 ? 'bg-danger' : 'bg-gradient-to-l from-neon-deep to-neon'
+                          )}
+                          style={{ width: `${(secondsLeft / session.timer_duration) * 100}%` }}
+                        />
+                      </div>
                     </div>
 
                     {hasAnswered ? (
-                      <div className="text-center py-12 space-y-3">
-                        <Zap className="w-8 h-8 text-yellow-400 mx-auto animate-bounce" />
-                        <h4 className="font-bold text-slate-200">تم تسجيل إجابتك بنجاح!</h4>
-                        <p className="text-slate-400 text-xs">بانتظار المقدم لكشف النتيجة أو انتهاء وقت البقية...</p>
+                      <div className="anim-rise space-y-3 py-8 text-center">
+                        <Loader2 className="mx-auto h-8 w-8 animate-spin text-gold" />
+                        <h4 className="font-bold text-ink">تم تسجيل إجابتك!</h4>
+                        <p className="text-xs text-ink-mute">بانتظار المقدم لكشف النتيجة...</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         {[1, 2, 3, 4].map((optNum) => {
                           const optionKey = `option${optNum}`;
                           const optionVal = currentQuestion[optionKey];
                           if (!optionVal || hiddenOptions.includes(optNum)) return null;
-
                           return (
                             <button
                               key={optNum}
                               onClick={() => handleSubmitAnswer(optNum)}
-                              className="py-6 rounded-xl border border-white/10 hover:border-purple-500 bg-slate-900/60 hover:bg-purple-500/10 font-bold text-base transition-all active:scale-95"
+                              className={cn(
+                                'group flex cursor-pointer flex-col items-center gap-2 rounded-2xl border p-5 text-center transition-all active:scale-95',
+                                'border-line bg-void-2/60 hover:border-neon/60 hover:bg-neon/10 hover:shadow-[var(--shadow-neon)]'
+                              )}
                             >
-                              الخيار {optNum}
+                              <span className="font-display text-2xl font-extrabold text-neon-bright transition-colors group-hover:text-gold">
+                                {optionLabels[optNum - 1]}
+                              </span>
+                              <span className="text-sm font-bold text-ink-soft">{optionVal}</span>
                             </button>
                           );
                         })}
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
 
-                {/* REVEAL CORRECT ANSWER FEEDBACK */}
+                {/* REVEAL */}
                 {questionStatus === 'revealed' && isCorrect !== null && (
-                  <div className="text-center py-8 space-y-4">
+                  <div className={cn('anim-rise space-y-4 py-6 text-center', isCorrect ? '' : 'anim-shake')}>
                     {isCorrect ? (
                       <>
-                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto animate-bounce" />
-                        <h3 className="text-xl font-bold text-green-400">إجابة صحيحة! 🎉</h3>
+                        <CheckCircle className="anim-count-pop mx-auto h-16 w-16 text-success" />
+                        <h3 className="text-xl font-bold text-success-bright">إجابة صحيحة!</h3>
                       </>
                     ) : (
                       <>
-                        <XCircle className="w-16 h-16 text-red-500 mx-auto animate-shake" />
-                        <h3 className="text-xl font-bold text-red-400">إجابة خاطئة! 😢</h3>
+                        <XCircle className="anim-count-pop mx-auto h-16 w-16 text-danger" />
+                        <h3 className="text-xl font-bold text-danger-bright">إجابة خاطئة!</h3>
                       </>
                     )}
-                    <p className="text-slate-400 text-xs">بانتظار المقدم لإطلاق السؤال التالي...</p>
+                    <p className="text-xs text-ink-mute">بانتظار المقدم لإطلاق السؤال التالي...</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* END OF GAME SCREEN */}
+            {/* FINISHED */}
             {session.status === 'finished' && (
-              <div className="text-center space-y-4">
-                <Trophy className="w-12 h-12 text-yellow-400 mx-auto animate-bounce" />
-                <h3 className="text-xl font-bold text-slate-200">انتهت المسابقة! 🏁</h3>
-                <p className="text-slate-400 text-xs">شكراً لمشاركتك المتميزة معنا. راقب شاشة التلفزيون لمشاهدة منصة التتويج والنتائج النهائية.</p>
+              <div className="anim-rise space-y-4 text-center">
+                <Trophy className="anim-float mx-auto h-12 w-12 text-gold" />
+                <h3 className="text-xl font-bold text-ink">انتهت المسابقة!</h3>
+                <p className="text-xs text-ink-mute">شكراً لمشاركتك المتميزة. راقب شاشة التلفزيون لمشاهدة منصة التتويج.</p>
               </div>
             )}
           </div>
-          
-          {/* Floating Scoreboard Overlay */}
+
+          {/* Scoreboard overlay */}
           {session.show_scoreboard && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
-              <div className="w-full max-w-sm p-6 rounded-2xl bg-white/5 border border-white/10 text-center space-y-4">
-                <h3 className="text-lg font-bold text-purple-300">الترتيب المؤقت للمتسابقين 📊</h3>
-                <p className="text-xs text-slate-400">سيختفي الترتيب تلقائياً خلال ثوانٍ...</p>
-                <div className="py-2 text-sm font-bold text-slate-200">
-                  لقد حققت: {player.score} نقطة ⭐
+            <div className="fixed inset-0 z-50 grid place-items-center bg-void/80 p-6 backdrop-blur-md">
+              <div className="glass-strong w-full max-w-sm space-y-4 rounded-[var(--radius-card)] p-6 text-center shadow-[var(--shadow-neon-strong)]">
+                <Trophy className="anim-float mx-auto h-10 w-10 text-gold" />
+                <h3 className="text-lg font-bold text-gradient-gold">الترتيب المؤقت</h3>
+                <p className="text-xs text-ink-mute">سيختفي الترتيب تلقائياً خلال ثوانٍ...</p>
+                <div className="rounded-xl border border-gold/25 bg-gold/10 py-3 font-display text-lg font-extrabold text-gold">
+                  {player.score} نقطة
                 </div>
               </div>
             </div>
           )}
         </div>
       )}
-    </main>
+    </Background>
   );
 }
 
 export default function PlayerPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400 text-sm">جاري التحميل...</div>}>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center text-ink-mute">جاري التحميل...</div>}>
       <PlayerPageContent />
     </Suspense>
   );

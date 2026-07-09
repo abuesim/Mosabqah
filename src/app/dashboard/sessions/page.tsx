@@ -3,7 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Layers, Plus, Play, Circle, CheckSquare, Square, Trash2, ArrowLeft, Users, Trophy, Award, Radio } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Layers, Plus, Play, CheckSquare, Square, ArrowRight, Users, Radio, Flame } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import Card, { CardHeader } from '@/components/ui/Card';
+import { Field, Input, Select } from '@/components/ui/Input';
+import StatusDot from '@/components/ui/StatusDot';
+import DifficultyBadge from '@/components/ui/DifficultyBadge';
+import CategoryIcon from '@/components/ui/CategoryIcon';
+import Spinner from '@/components/ui/Spinner';
 
 import { Suspense } from 'react';
 
@@ -41,11 +49,9 @@ function SessionsPageContent() {
         const { data: userProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (userProfile) setProfile(userProfile);
 
-        // Fetch central library questions
         const { data: qData } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
         if (qData) setQuestions(qData);
 
-        // Fetch Sessions
         await fetchSessions(user.id);
       } catch (err) {
         console.error(err);
@@ -64,12 +70,10 @@ function SessionsPageContent() {
     }
 
     async function loadActiveSession() {
-      // 1. Fetch Session Info
       const { data: session } = await supabase.from('sessions').select('*').eq('id', activeSessionId).single();
       if (!session) return;
       setActiveSession(session);
 
-      // 2. Fetch Session Questions
       const { data: sqData } = await supabase
         .from('session_questions')
         .select('question_id')
@@ -79,7 +83,6 @@ function SessionsPageContent() {
         const { data: qList } = await supabase.from('questions').select('*').in('id', qIds);
         if (qList) {
           setActiveQuestions(qList);
-          // Set current question if any
           if (session.current_question_id) {
             const currentQ = qList.find(q => q.id === session.current_question_id);
             setCurrentQuestion(currentQ || null);
@@ -87,7 +90,6 @@ function SessionsPageContent() {
         }
       }
 
-      // 3. Fetch Players
       const { data: playerData } = await supabase
         .from('players')
         .select('*')
@@ -95,7 +97,6 @@ function SessionsPageContent() {
         .order('score', { ascending: false });
       if (playerData) setPlayers(playerData);
 
-      // 4. Fetch Submitted Answers Count for current question
       if (session.current_question_id) {
         const { count } = await supabase
           .from('player_answers')
@@ -108,7 +109,6 @@ function SessionsPageContent() {
 
     loadActiveSession();
 
-    // Set up Realtime subscriptions
     const playersSubscription = supabase
       .channel('players-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `session_id=eq.${activeSessionId}` }, () => {
@@ -175,19 +175,14 @@ function SessionsPageContent() {
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
-
     setError('');
     setSuccess('');
-
     if (selectedQuestionIds.length === 0) {
       setError('يرجى تحديد سؤال واحد على الأقل من مكتبة الأسئلة المتاحة.');
       return;
     }
-
     try {
       const code = roomCode || Math.floor(1000 + Math.random() * 9000).toString();
-
-      // 1. Create Session
       const { data: session, error: sessionError } = await supabase
         .from('sessions')
         .insert({
@@ -199,18 +194,10 @@ function SessionsPageContent() {
         })
         .select()
         .single();
-
       if (sessionError) throw sessionError;
-
-      // 2. Map Selected Questions
-      const sessionQuestions = selectedQuestionIds.map(qid => ({
-        session_id: session.id,
-        question_id: qid
-      }));
-
+      const sessionQuestions = selectedQuestionIds.map(qid => ({ session_id: session.id, question_id: qid }));
       const { error: sqError } = await supabase.from('session_questions').insert(sessionQuestions);
       if (sqError) throw sqError;
-
       setSuccess('تم إنشاء الجلسة بنجاح!');
       setTitle('');
       setRoomCode('');
@@ -229,30 +216,19 @@ function SessionsPageContent() {
     }
   };
 
-  // ==========================================
-  // GAME CONSOLE ACTION HANDLERS
-  // ==========================================
-
+  // GAME CONSOLE ACTION HANDLERS (logic unchanged)
   const handleShowQuestion = async (qid: number) => {
     if (!activeSession) return;
     setAnswersCount(0);
-
     const { error: updateError } = await supabase
       .from('sessions')
-      .update({
-        current_question_id: qid,
-        question_status: 'showing',
-        status: 'active'
-      })
+      .update({ current_question_id: qid, question_status: 'showing', status: 'active' })
       .eq('id', activeSession.id);
-
     if (updateError) console.error(updateError);
   };
 
   const handleRevealAnswer = async () => {
     if (!activeSession || !currentQuestion) return;
-
-    // Fetch submitted answers
     const { data: submissions } = await supabase
       .from('player_answers')
       .select('*')
@@ -260,60 +236,31 @@ function SessionsPageContent() {
       .eq('question_id', currentQuestion.id);
 
     if (submissions && submissions.length > 0) {
-      // Calculate and update players' scores in database
       const updates = submissions.map(sub => {
         if (sub.is_correct) {
-          // Calculate score based on speed: base 100 + up to 50 bonus
           const timePercent = Math.max(0, 1 - (parseFloat(sub.time_spent) / activeSession.timer_duration));
           const bonus = Math.round(timePercent * 50);
           const scoreAdded = 100 + bonus;
-
           const player = players.find(p => p.id === sub.player_id);
           const currentScore = player ? player.score : 0;
           const currentStreak = player ? player.streak : 0;
-
-          return supabase
-            .from('players')
-            .update({
-              score: currentScore + scoreAdded,
-              streak: currentStreak + 1
-            })
-            .eq('id', sub.player_id);
+          return supabase.from('players').update({ score: currentScore + scoreAdded, streak: currentStreak + 1 }).eq('id', sub.player_id);
         } else {
-          // Reset streak on wrong answer
-          return supabase
-            .from('players')
-            .update({ streak: 0 })
-            .eq('id', sub.player_id);
+          return supabase.from('players').update({ streak: 0 }).eq('id', sub.player_id);
         }
       });
-
       await Promise.all(updates);
     }
-
-    // Set status to revealed
-    await supabase
-      .from('sessions')
-      .update({ question_status: 'revealed' })
-      .eq('id', activeSession.id);
+    await supabase.from('sessions').update({ question_status: 'revealed' }).eq('id', activeSession.id);
   };
 
   const handleToggleScoreboard = async () => {
     if (!activeSession) return;
     const newState = !activeSession.show_scoreboard;
-    
-    await supabase
-      .from('sessions')
-      .update({ show_scoreboard: newState })
-      .eq('id', activeSession.id);
-
-    // Auto hide scoreboard after 8 seconds on players devices
+    await supabase.from('sessions').update({ show_scoreboard: newState }).eq('id', activeSession.id);
     if (newState) {
       setTimeout(async () => {
-        await supabase
-          .from('sessions')
-          .update({ show_scoreboard: false })
-          .eq('id', activeSession.id);
+        await supabase.from('sessions').update({ show_scoreboard: false }).eq('id', activeSession.id);
       }, 8000);
     }
   };
@@ -321,12 +268,8 @@ function SessionsPageContent() {
   const handleEndGame = async () => {
     if (!activeSession) return;
     if (!confirm('هل تريد إنهاء هذه المسابقة نهائياً وتتويج الفائزين؟')) return;
-
-    // 1. Get Top Winner
     if (players.length > 0) {
-      const winner = players[0]; // first player in sorted players array
-
-      // Add to Winners Archive
+      const winner = players[0];
       await supabase.from('winners_archive').insert({
         session_id: activeSession.id,
         session_title: activeSession.title,
@@ -334,175 +277,152 @@ function SessionsPageContent() {
         winner_score: winner.score,
         total_players: players.length
       });
-
-      // Update Cumulative Standings for all players
       const cumulativeUpdates = players.map(p => {
-        return supabase.rpc('increment_cumulative_score', {
-          p_name: p.name,
-          p_score: p.score
-        });
+        return supabase.rpc('increment_cumulative_score', { p_name: p.name, p_score: p.score });
       });
       await Promise.all(cumulativeUpdates);
     }
-
-    // 2. Set Session Status to finished
-    await supabase
-      .from('sessions')
-      .update({
-        status: 'finished',
-        current_question_id: null,
-        question_status: 'idle'
-      })
-      .eq('id', activeSession.id);
-
+    await supabase.from('sessions').update({ status: 'finished', current_question_id: null, question_status: 'idle' }).eq('id', activeSession.id);
     router.push('/dashboard/sessions');
   };
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-t-purple-500 border-white/5 animate-spin" />
+      <div className="flex flex-1 items-center justify-center py-24">
+        <Spinner size="lg" label="جاري تحميل الجلسات..." />
       </div>
     );
   }
 
   // ==========================================
-  // VIEW RENDER: GAME CONSOLE
+  // VIEW: GAME CONSOLE
   // ==========================================
   if (activeSession) {
     return (
-      <div className="space-y-8">
+      <div className="anim-rise space-y-7">
         {/* Header */}
-        <div className="flex items-center justify-between pb-6 border-b border-white/5">
+        <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/dashboard/sessions')}
-              className="p-2.5 rounded-xl bg-slate-900/60 border border-white/10 hover:bg-slate-900 text-slate-300 transition-all"
+              className="grid h-10 w-10 cursor-pointer place-items-center rounded-xl border border-line bg-void-2/60 text-ink-soft transition-all hover:bg-void-2"
+              aria-label="رجوع"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowRight className="h-4 w-4" />
             </button>
             <div>
-              <h2 className="text-xl md:text-2xl font-extrabold text-slate-100 flex items-center gap-2">
-                <Radio className="w-5 h-5 text-red-500 animate-pulse" />
-                غرفة التحكم: {activeSession.title}
+              <h2 className="flex items-center gap-2 text-xl font-extrabold text-ink md:text-2xl">
+                <Radio className="h-5 w-5 anim-pulse-neon text-danger-bright" />
+                {activeSession.title}
               </h2>
-              <p className="text-slate-400 text-xs mt-1">
-                الرمز التعريفي للغرفة: <span className="font-mono font-bold text-purple-300">{activeSession.room_code}</span>
+              <p className="mt-1 text-xs text-ink-mute">
+                رمز الغرفة:{' '}
+                <span className="font-display font-bold tracking-widest text-neon-bright">{activeSession.room_code}</span>
               </p>
             </div>
           </div>
-
-          <button
-            onClick={handleEndGame}
-            className="px-5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-300 text-xs font-bold transition-all"
-          >
-            إنهاء وتتويج الفائزين 🏁
-          </button>
+          <Button variant="danger" size="sm" onClick={handleEndGame}>إنهاء وتتويج الفائزين</Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Questions List / Controls */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Current Question Panel */}
-            <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-5">
-              <h3 className="text-sm text-slate-400 font-bold tracking-wider uppercase">السؤال النشط حالياً</h3>
-              
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
+          {/* Left: current question + bank */}
+          <div className="space-y-6 lg:col-span-2">
+            <Card glow="neon" className="p-6">
+              <CardHeader title="السؤال النشط حالياً" accent="neon" />
+
               {currentQuestion ? (
-                <div className="space-y-4">
-                  <h4 className="text-lg md:text-xl font-bold text-slate-100">{currentQuestion.question_text}</h4>
-                  
-                  {/* Option Grid */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className={`p-4 rounded-xl border text-sm ${currentQuestion.correct_option === 1 ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-slate-900/60 border-white/5 text-slate-300'}`}>
-                      1. {currentQuestion.option1}
-                    </div>
-                    <div className={`p-4 rounded-xl border text-sm ${currentQuestion.correct_option === 2 ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-slate-900/60 border-white/5 text-slate-300'}`}>
-                      2. {currentQuestion.option2}
-                    </div>
-                    {currentQuestion.option3 && (
-                      <div className={`p-4 rounded-xl border text-sm ${currentQuestion.correct_option === 3 ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-slate-900/60 border-white/5 text-slate-300'}`}>
-                        3. {currentQuestion.option3}
-                      </div>
-                    )}
-                    {currentQuestion.option4 && (
-                      <div className={`p-4 rounded-xl border text-sm ${currentQuestion.correct_option === 4 ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-slate-900/60 border-white/5 text-slate-300'}`}>
-                        4. {currentQuestion.option4}
-                      </div>
-                    )}
+                <div className="mt-5 space-y-4">
+                  <h4 className="text-lg font-bold text-ink md:text-xl">{currentQuestion.question_text}</h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map((n) => {
+                      const opt = currentQuestion[`option${n}`];
+                      if (!opt) return null;
+                      const isCorrect = currentQuestion.correct_option === n;
+                      return (
+                        <div
+                          key={n}
+                          className={cn(
+                            'rounded-xl border p-4 text-sm',
+                            isCorrect
+                              ? 'border-success/40 bg-success/10 text-success-bright shadow-[var(--shadow-success)]'
+                              : 'border-line bg-void-2/50 text-ink-soft'
+                          )}
+                        >
+                          <span className="font-display font-bold text-gold">{n}.</span> {opt}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Active Question Info / Commands */}
-                  <div className="pt-4 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
-                    <div className="text-xs text-slate-400">
-                      حالة السؤال: <span className="font-bold text-slate-200">{
-                        activeSession.question_status === 'showing' ? 'معروض للجميع ⏳' :
-                        activeSession.question_status === 'revealed' ? 'تم الكشف ✅' : 'انتظار'
-                      }</span>
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
+                    <div className="text-xs text-ink-mute">
+                      الحالة:{' '}
+                      <span className="font-bold text-ink-soft">
+                        {activeSession.question_status === 'showing' ? 'معروض للجميع' :
+                         activeSession.question_status === 'revealed' ? 'تم الكشف' : 'انتظار'}
+                      </span>
                       <span className="mx-2">•</span>
-                      الإجابات المستلمة: <span className="font-bold text-purple-400">{answersCount} إجابة</span>
+                      الإجابات:{' '}
+                      <span className="font-display font-bold text-neon-bright">{answersCount}</span>
+                      {' / '}
+                      <span className="font-display text-ink-mute">{players.length}</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {activeSession.question_status === 'showing' && (
-                        <button
-                          onClick={handleRevealAnswer}
-                          className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-all"
-                        >
-                          اعتماد وكشف الإجابة 🔔
-                        </button>
+                        <Button variant="success" size="sm" onClick={handleRevealAnswer}>كشف الإجابة</Button>
                       )}
-                      <button
+                      <Button
+                        variant={activeSession.show_scoreboard ? 'primary' : 'ghost'}
+                        size="sm"
                         onClick={handleToggleScoreboard}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                          activeSession.show_scoreboard
-                            ? 'bg-purple-600 border-purple-500 text-white'
-                            : 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20 text-purple-300'
-                        }`}
                       >
-                        {activeSession.show_scoreboard ? 'إخفاء الترتيب 📊' : 'عرض الترتيب للمتسابقين 📊'}
-                      </button>
+                        {activeSession.show_scoreboard ? 'إخفاء الترتيب' : 'عرض الترتيب'}
+                      </Button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-12 text-center text-slate-400 text-sm">
+                <div className="py-12 text-center text-sm text-ink-mute">
                   لم يتم بث أي سؤال بعد. اختر سؤالاً من القائمة أدناه لبدء التحدي.
                 </div>
               )}
-            </div>
+            </Card>
 
-            {/* Questions Bank List inside Session */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-200">أسئلة هذه الجلسة</h3>
-              <div className="rounded-2xl border border-white/5 bg-white/5 overflow-hidden divide-y divide-white/5">
+            {/* Question bank */}
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-ink">
+                <Layers className="h-5 w-5 text-cyan" />
+                أسئلة هذه الجلسة
+              </h3>
+              <div className="glass divide-y divide-line overflow-hidden rounded-[var(--radius-card)]">
                 {activeQuestions.map((q) => {
                   const isCurrent = activeSession.current_question_id === q.id;
                   return (
-                    <div key={q.id} className={`p-4 flex items-center justify-between transition-all ${isCurrent ? 'bg-purple-500/5' : 'hover:bg-white/5'}`}>
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-sm">{q.question_text}</h4>
-                        <div className="flex items-center gap-3 mt-1.5 text-[10px] text-slate-400">
-                          <span className={`px-2 py-0.5 rounded-full ${
-                            q.difficulty === 'easy' ? 'bg-green-500/10 text-green-400' :
-                            q.difficulty === 'medium' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'
-                          }`}>
-                            {q.difficulty === 'easy' ? 'سهل' : q.difficulty === 'medium' ? 'متوسط' : 'صعب'}
-                          </span>
-                          <span>•</span>
-                          <span>{q.category === 'islamic' ? '🕌 إسلامية' : q.category === 'riddles' ? '🧩 ألغاز' : q.category === 'science' ? '🔬 علوم' : 'عام'}</span>
+                    <div
+                      key={q.id}
+                      className={cn('flex items-center justify-between gap-3 p-4 transition-colors', isCurrent ? 'bg-neon/5' : 'hover:bg-white/5')}
+                    >
+                      <div className="min-w-0">
+                        <h4 className="truncate text-sm font-bold text-ink-soft">{q.question_text}</h4>
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <DifficultyBadge difficulty={q.difficulty} />
+                          <CategoryIcon category={q.category} />
                         </div>
                       </div>
-
                       <button
                         onClick={() => handleShowQuestion(q.id)}
                         disabled={isCurrent && activeSession.question_status === 'showing'}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                        className={cn(
+                          'shrink-0 cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-bold transition-all',
                           isCurrent
-                            ? 'bg-purple-500/20 border-purple-500/30 text-purple-300'
-                            : 'bg-slate-900/60 border-white/10 hover:bg-slate-900 text-slate-200'
-                        }`}
+                            ? 'border-neon/40 bg-neon/20 text-neon-bright'
+                            : 'border-line bg-void-2/60 text-ink-soft hover:border-neon/40 hover:text-neon-bright',
+                          'disabled:cursor-not-allowed disabled:opacity-50'
+                        )}
                       >
-                        {isCurrent ? 'معروض الآن 📡' : 'طرح السؤال 📡'}
+                        {isCurrent ? 'معروض الآن' : 'طرح السؤال'}
                       </button>
                     </div>
                   );
@@ -511,46 +431,44 @@ function SessionsPageContent() {
             </div>
           </div>
 
-          {/* Right Column: Leaderboard / Connected Players */}
+          {/* Right: players */}
           <div className="space-y-6">
-            <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-5">
-              <h3 className="text-sm font-bold text-slate-300 tracking-wider flex items-center gap-1.5">
-                <Users className="w-5 h-5 text-purple-400" />
-                المتسابقون المتصلون ({players.length})
-              </h3>
-
+            <Card className="p-6">
+              <CardHeader
+                title={<span>المتسابقون المتصلون ({players.length})</span>}
+                icon={<Users className="h-5 w-5" />}
+                accent="cyan"
+              />
               {players.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-xs">
-                  بانتظار انضمام المتسابقين...
-                </div>
+                <div className="py-8 text-center text-xs text-ink-mute">بانتظار انضمام المتسابقين...</div>
               ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
                   {players.map((p, idx) => (
-                    <div key={p.id} className="p-3.5 rounded-xl bg-slate-900/60 border border-white/5 flex items-center justify-between">
+                    <div key={p.id} className="flex items-center justify-between rounded-xl border border-line bg-void-2/50 p-3.5">
                       <div className="flex items-center gap-3">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                          idx === 0 ? 'bg-amber-500/20 text-amber-400' :
-                          idx === 1 ? 'bg-slate-400/20 text-slate-300' :
-                          idx === 2 ? 'bg-amber-700/20 text-amber-600' : 'bg-slate-800 text-slate-400'
-                        }`}>
+                        <span className={cn(
+                          'grid h-7 w-7 shrink-0 place-items-center rounded-full font-display text-xs font-extrabold',
+                          idx === 0 ? 'bg-gold/20 text-gold' :
+                          idx === 1 ? 'bg-white/15 text-ink-soft' :
+                          idx === 2 ? 'bg-amber-700/30 text-amber-500' : 'bg-void text-ink-faint'
+                        )}>
                           {idx + 1}
                         </span>
                         <div>
-                          <p className="font-bold text-xs text-slate-200" style={{ color: p.color }}>{p.name}</p>
+                          <p className="text-xs font-bold" style={{ color: p.color }}>{p.name}</p>
                           {p.streak >= 3 && (
-                            <span className="text-[10px] text-orange-400 font-bold">🔥 متتالي: {p.streak}</span>
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-orange-400">
+                              <Flame className="h-3 w-3" /> {p.streak} متتالي
+                            </span>
                           )}
                         </div>
                       </div>
-
-                      <div className="text-right">
-                        <p className="font-extrabold text-xs text-slate-100">{p.score} نقطة</p>
-                      </div>
+                      <span className="font-display text-xs font-extrabold text-ink">{p.score}</span>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -558,81 +476,50 @@ function SessionsPageContent() {
   }
 
   // ==========================================
-  // VIEW RENDER: SESSIONS LIST & CREATION
+  // VIEW: SESSIONS LIST & CREATION
   // ==========================================
   return (
-    <div className="space-y-10">
+    <div className="anim-rise space-y-8">
       <div className="flex items-center gap-2">
-        <Layers className="w-6 h-6 text-purple-400" />
-        <h2 className="text-2xl font-extrabold text-slate-100">إدارة جلسات اللعب</h2>
+        <Layers className="h-6 w-6 text-neon-bright" />
+        <h2 className="text-2xl font-extrabold text-ink">إدارة جلسات اللعب</h2>
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/20 text-red-300 text-sm text-center">
-          {error}
-        </div>
+        <div className="anim-shake rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-center text-sm text-danger-bright">{error}</div>
       )}
       {success && (
-        <div className="p-4 rounded-xl bg-green-500/15 border border-green-500/20 text-green-300 text-sm text-center">
-          {success}
-        </div>
+        <div className="rounded-xl border border-success/25 bg-success/10 px-4 py-3 text-center text-sm text-success-bright">{success}</div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left Form: Create Session */}
-        <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-6">
-          <h3 className="text-lg font-bold text-slate-200 flex items-center gap-1.5">
-            <Plus className="w-5 h-5 text-purple-400" />
-            إنشاء جلسة جديدة
-          </h3>
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+        {/* Create form */}
+        <Card glow="neon" className="space-y-5 p-6">
+          <CardHeader title="إنشاء جلسة جديدة" icon={<Plus className="h-5 w-5" />} />
+          <form onSubmit={handleCreateSession} className="space-y-4">
+            <Field label="عنوان الجلسة" required>
+              <Input required placeholder="مثال: تحدي الجمعة العائلي" value={title} onChange={(e) => setTitle(e.target.value)} />
+            </Field>
 
-          <form onSubmit={handleCreateSession} className="space-y-4 text-sm">
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300 font-medium">عنوان الجلسة</label>
-              <input
-                type="text"
-                required
-                placeholder="مثال: تحدي الجمعة العائلي"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-medium">رمز الغرفة (رقمي - اختياري)</label>
-                <input
-                  type="text"
-                  placeholder="توليد عشوائي"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-medium">مدة المؤقت (ثواني)</label>
-                <select
-                  value={timerDuration}
-                  onChange={(e) => setTimerDuration(parseInt(e.target.value, 10))}
-                  className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                >
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="رمز الغرفة (اختياري)">
+                <Input placeholder="توليد عشوائي" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} />
+              </Field>
+              <Field label="مدة المؤقت">
+                <Select value={timerDuration} onChange={(e) => setTimerDuration(parseInt(e.target.value, 10))}>
                   <option value={20}>20 ثانية</option>
                   <option value={30}>30 ثانية</option>
                   <option value={45}>45 ثانية</option>
                   <option value={60}>60 ثانية</option>
-                </select>
-              </div>
+                </Select>
+              </Field>
             </div>
 
-            {/* Select Questions from central bank */}
             <div className="space-y-2">
-              <label className="text-xs text-slate-300 font-semibold block">اختر أسئلة الجلسة من المكتبة</label>
-              <div className="max-h-48 overflow-y-auto border border-white/10 rounded-xl divide-y divide-white/5 bg-slate-900/40 p-2 space-y-1">
+              <label className="block text-xs font-semibold text-ink-soft">اختر أسئلة الجلسة من المكتبة</label>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-line bg-void/40 p-2">
                 {questions.length === 0 ? (
-                  <div className="p-4 text-center text-slate-500 text-xs">
-                    لا توجد أسئلة متوفرة في بنك الأسئلة المركزي حالياً.
-                  </div>
+                  <div className="p-4 text-center text-xs text-ink-faint">لا توجد أسئلة متوفرة في البنك المركزي حالياً.</div>
                 ) : (
                   questions.map(q => {
                     const isSelected = selectedQuestionIds.includes(q.id);
@@ -641,71 +528,49 @@ function SessionsPageContent() {
                         type="button"
                         key={q.id}
                         onClick={() => handleQuestionToggle(q.id)}
-                        className="w-full text-right p-2.5 rounded-lg flex items-center justify-between text-xs hover:bg-white/5 transition-all"
+                        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg p-2.5 text-right text-xs transition-colors hover:bg-white/5"
                       >
-                        <span className="font-medium text-slate-300 line-clamp-1 flex-1">{q.question_text}</span>
-                        {isSelected ? (
-                          <CheckSquare className="w-4 h-4 text-purple-400 shrink-0 mr-2" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500 shrink-0 mr-2" />
-                        )}
+                        <span className="line-clamp-1 flex-1 text-ink-soft">{q.question_text}</span>
+                        {isSelected
+                          ? <CheckSquare className="h-4 w-4 shrink-0 text-neon-bright" />
+                          : <Square className="h-4 w-4 shrink-0 text-ink-faint" />}
                       </button>
                     );
                   })
                 )}
               </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                الأسئلة المحددة: {selectedQuestionIds.length} سؤال.
-              </span>
+              <span className="block text-[10px] text-ink-faint">الأسئلة المحددة: {selectedQuestionIds.length} سؤال.</span>
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all mt-4"
-            >
-              إنشاء الجلسة وحفظها
-            </button>
+            <Button type="submit" variant="primary" fullWidth size="lg">إنشاء الجلسة وحفظها</Button>
           </form>
-        </div>
+        </Card>
 
-        {/* Right Column: Sessions List */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-2xl border border-white/5 bg-white/5 overflow-hidden">
+        {/* Sessions list */}
+        <div className="space-y-4 lg:col-span-2">
+          <div className="glass overflow-hidden rounded-[var(--radius-card)]">
             {sessions.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 text-sm">
-                لا توجد جلسات منشأة حالياً.
-              </div>
+              <div className="p-12 text-center text-sm text-ink-mute">لا توجد جلسات منشأة حالياً.</div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-line">
                 {sessions.map((session) => (
-                  <div key={session.id} className="p-5 flex items-center justify-between hover:bg-white/5 transition-all">
-                    <div>
-                      <h4 className="font-bold text-slate-200 text-sm md:text-base">{session.title}</h4>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 font-mono tracking-wider font-bold">
-                          رمز الغرفة: {session.room_code}
+                  <div key={session.id} className="flex items-center justify-between gap-3 p-5 transition-colors hover:bg-white/5">
+                    <div className="min-w-0">
+                      <h4 className="truncate text-sm font-bold text-ink md:text-base">{session.title}</h4>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-mute">
+                        <span className="rounded-md border border-line bg-void/60 px-2 py-0.5 font-display tracking-wider text-neon-bright">
+                          {session.room_code}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1.5">
-                          <Circle className={`w-2.5 h-2.5 ${
-                            session.status === 'active' ? 'fill-green-500 text-green-500' :
-                            session.status === 'finished' ? 'fill-red-500 text-red-500' : 'fill-slate-500 text-slate-500'
-                          }`} />
-                          {session.status === 'active' ? 'نشطة حالياً' :
-                           session.status === 'finished' ? 'منتهية' : 'انتظار'}
-                        </span>
+                        <StatusDot status={session.status} pulse={session.status === 'active'} />
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
-                        className="px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5"
-                      >
-                        <Play className="w-3 h-3 fill-current" />
-                        لوحة التحكم
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
+                      className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-neon/30 bg-neon/10 px-4 py-2 text-xs font-bold text-neon-bright transition-all hover:bg-neon/20 hover:shadow-[var(--shadow-neon)]"
+                    >
+                      <Play className="h-3 w-3 fill-current" />
+                      لوحة التحكم
+                    </button>
                   </div>
                 ))}
               </div>
@@ -719,7 +584,7 @@ function SessionsPageContent() {
 
 export default function SessionsPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center p-12 text-slate-400">جاري التحميل...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center p-12"><Spinner label="جاري التحميل..." /></div>}>
       <SessionsPageContent />
     </Suspense>
   );

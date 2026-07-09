@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Trash2, Search, Filter, BookOpen, Upload, Download, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Plus, Trash2, Search, BookOpen, Upload, Filter } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import Card, { CardHeader } from '@/components/ui/Card';
+import { Field, Input, Textarea, Select } from '@/components/ui/Input';
+import DifficultyBadge from '@/components/ui/DifficultyBadge';
+import CategoryIcon from '@/components/ui/CategoryIcon';
+import Spinner from '@/components/ui/Spinner';
 
 export default function QuestionsPage() {
   const [profile, setProfile] = useState<{ id: string; username: string; role: string } | null>(null);
@@ -32,10 +39,8 @@ export default function QuestionsPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-
         const { data: userProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (userProfile) setProfile(userProfile);
-
         await fetchQuestions();
       } catch (err) {
         console.error(err);
@@ -48,19 +53,15 @@ export default function QuestionsPage() {
 
   useEffect(() => {
     let result = [...questions];
-
     if (searchQuery.trim()) {
       result = result.filter(q => q.question_text.toLowerCase().includes(searchQuery.toLowerCase()));
     }
-
     if (filterDifficulty !== 'all') {
       result = result.filter(q => q.difficulty === filterDifficulty);
     }
-
     if (filterCategory !== 'all') {
       result = result.filter(q => q.category === filterCategory);
     }
-
     setFilteredQuestions(result);
   }, [searchQuery, filterDifficulty, filterCategory, questions]);
 
@@ -78,10 +79,8 @@ export default function QuestionsPage() {
       setError('خطأ: الأدمن فقط يمكنه إضافة أسئلة للبنك المركزي.');
       return;
     }
-
     setError('');
     setSuccess('');
-
     try {
       const { error: insertError } = await supabase.from('questions').insert({
         question_text: questionText,
@@ -94,9 +93,7 @@ export default function QuestionsPage() {
         category,
         created_by: profile.id
       });
-
       if (insertError) throw insertError;
-
       setSuccess('تم إضافة السؤال بنجاح إلى بنك الأسئلة!');
       setQuestionText('');
       setOption1('');
@@ -114,13 +111,10 @@ export default function QuestionsPage() {
       setError('عذراً، الأدمن فقط يمكنه مسح الأسئلة.');
       return;
     }
-
     if (!confirm('هل أنت متأكد من رغبتك في حذف هذا السؤال نهائياً؟')) return;
-
     try {
       const { error: deleteError } = await supabase.from('questions').delete().eq('id', id);
       if (deleteError) throw deleteError;
-
       setSuccess('تم حذف السؤال بنجاح.');
       await fetchQuestions();
     } catch (err: any) {
@@ -133,10 +127,8 @@ export default function QuestionsPage() {
       setError('عذراً، الأدمن فقط يمكنه رفع الأسئلة.');
       return;
     }
-
     const file = e.target.files?.[0];
     if (!file) return;
-
     setError('');
     setSuccess('');
 
@@ -145,14 +137,10 @@ export default function QuestionsPage() {
       try {
         const text = event.target?.result as string;
         const lines = text.split('\n').filter(line => line.trim() !== '');
-        
-        // Skip header
         const rows = lines.slice(1);
         const listToInsert = rows.map(row => {
-          // simple csv parse (split by comma)
           const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
           if (cols.length < 7) return null;
-
           return {
             question_text: cols[0],
             option1: cols[1],
@@ -170,10 +158,8 @@ export default function QuestionsPage() {
           setError('لم يتم العثور على أسطر صالحة للاستيراد.');
           return;
         }
-
         const { error: bulkError } = await supabase.from('questions').insert(listToInsert);
         if (bulkError) throw bulkError;
-
         setSuccess(`تم استيراد ${listToInsert.length} سؤال بنجاح من الملف!`);
         await fetchQuestions();
       } catch (err: any) {
@@ -185,8 +171,8 @@ export default function QuestionsPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-t-purple-500 border-white/5 animate-spin" />
+      <div className="flex flex-1 items-center justify-center py-24">
+        <Spinner size="lg" label="جاري تحميل بنك الأسئلة..." />
       </div>
     );
   }
@@ -194,262 +180,174 @@ export default function QuestionsPage() {
   const isAdmin = profile?.role === 'admin';
 
   return (
-    <div className="space-y-10">
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="anim-rise space-y-8">
+      {/* Header */}
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-100 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-purple-400" />
+          <h2 className="flex items-center gap-2 text-2xl font-extrabold text-ink">
+            <BookOpen className="h-6 w-6 text-neon-bright" />
             بنك الأسئلة المركزي
           </h2>
-          <p className="text-slate-400 text-xs mt-1">
-            {isAdmin 
-              ? 'بصفتك مديراً للنظام (Admin)، يمكنك إضافة أسئلة جديدة، حذفها، أو استيرادها دفعة واحدة.' 
-              : 'بصفتك مقدماً (Presenter)، يمكنك تصفح كافة الأسئلة المتوفرة لبناء تحدياتك.'}
+          <p className="mt-1 text-xs text-ink-mute">
+            {isAdmin
+              ? 'بصفتك مديراً للنظام، يمكنك إضافة أسئلة جديدة، حذفها، أو استيرادها دفعة واحدة.'
+              : 'بصفتك مقدماً، يمكنك تصفح كافة الأسئلة المتوفرة لبناء تحدياتك.'}
           </p>
         </div>
-
         {isAdmin && (
-          <div className="flex items-center gap-3">
-            <label className="px-4 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
-              <Upload className="w-4 h-4" />
-              رفع ملف CSV 📄
-              <input type="file" accept=".csv" onChange={handleCsvUpload} className="hidden" />
-            </label>
-          </div>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-neon/30 bg-neon/10 px-4 py-2.5 text-xs font-bold text-neon-bright transition-all hover:bg-neon/20">
+            <Upload className="h-4 w-4" />
+            رفع ملف CSV
+            <input type="file" accept=".csv" onChange={handleCsvUpload} className="hidden" />
+          </label>
         )}
       </div>
 
       {/* Notifications */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/20 text-red-300 text-sm text-center">
-          {error}
-        </div>
+        <div className="anim-shake rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-center text-sm text-danger-bright">{error}</div>
       )}
       {success && (
-        <div className="p-4 rounded-xl bg-green-500/15 border border-green-500/20 text-green-300 text-sm text-center">
-          {success}
-        </div>
+        <div className="rounded-xl border border-success/25 bg-success/10 px-4 py-3 text-center text-sm text-success-bright">{success}</div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left Form: Add Question (Admin Only) */}
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+        {/* Form */}
         {isAdmin && (
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-6">
-            <h3 className="text-lg font-bold text-slate-200 flex items-center gap-1.5">
-              <Plus className="w-5 h-5 text-purple-400" />
-              إضافة سؤال جديد
-            </h3>
-
-            <form onSubmit={handleAddQuestion} className="space-y-4 text-sm">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-medium">نص السؤال</label>
-                <textarea
+          <Card glow="neon" className="space-y-5 p-6 lg:col-span-1">
+            <CardHeader title="إضافة سؤال جديد" icon={<Plus className="h-5 w-5" />} />
+            <form onSubmit={handleAddQuestion} className="space-y-4">
+              <Field label="نص السؤال" required>
+                <Textarea
                   required
                   placeholder="اكتب نص السؤال هنا..."
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500 transition-all h-20"
+                  className="h-20"
                 />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="الخيار الأول" required>
+                  <Input required value={option1} onChange={(e) => setOption1(e.target.value)} />
+                </Field>
+                <Field label="الخيار الثاني" required>
+                  <Input required value={option2} onChange={(e) => setOption2(e.target.value)} />
+                </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">الخيار الأول (إجباري)</label>
-                  <input
-                    type="text"
-                    required
-                    value={option1}
-                    onChange={(e) => setOption1(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">الخيار الثاني (إجباري)</label>
-                  <input
-                    type="text"
-                    required
-                    value={option2}
-                    onChange={(e) => setOption2(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="الخيار الثالث (اختياري)">
+                  <Input value={option3} onChange={(e) => setOption3(e.target.value)} />
+                </Field>
+                <Field label="الخيار الرابع (اختياري)">
+                  <Input value={option4} onChange={(e) => setOption4(e.target.value)} />
+                </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">الخيار الثالث (اختياري)</label>
-                  <input
-                    type="text"
-                    value={option3}
-                    onChange={(e) => setOption3(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">الخيار الرابع (اختياري)</label>
-                  <input
-                    type="text"
-                    value={option4}
-                    onChange={(e) => setOption4(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-medium">الإجابة الصحيحة</label>
-                <select
-                  value={correctOption}
-                  onChange={(e) => setCorrectOption(parseInt(e.target.value, 10))}
-                  className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                >
+              <Field label="الإجابة الصحيحة">
+                <Select value={correctOption} onChange={(e) => setCorrectOption(parseInt(e.target.value, 10))}>
                   <option value={1}>الخيار الأول</option>
                   <option value={2}>الخيار الثاني</option>
                   {option3.trim() && <option value={3}>الخيار الثالث</option>}
                   {option4.trim() && <option value={4}>الخيار الرابع</option>}
-                </select>
+                </Select>
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="مستوى الصعوبة">
+                  <Select value={difficulty} onChange={(e: any) => setDifficulty(e.target.value)}>
+                    <option value="easy">سهل</option>
+                    <option value="medium">متوسط</option>
+                    <option value="hard">صعب</option>
+                  </Select>
+                </Field>
+                <Field label="التصنيف">
+                  <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <option value="general">عام</option>
+                    <option value="islamic">إسلامية</option>
+                    <option value="riddles">ألغاز</option>
+                    <option value="science">علوم</option>
+                    <option value="family">عائلية</option>
+                  </Select>
+                </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">مستوى الصعوبة</label>
-                  <select
-                    value={difficulty}
-                    onChange={(e: any) => setDifficulty(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  >
-                    <option value="easy">سهل 🟢</option>
-                    <option value="medium">متوسط 🟡</option>
-                    <option value="hard">صعب 🔴</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-medium">التصنيف / النوع</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-purple-500"
-                  >
-                    <option value="general">عام 🌐</option>
-                    <option value="islamic">🕌 إسلامية</option>
-                    <option value="riddles">🧩 ألغاز</option>
-                    <option value="science">🔬 علوم</option>
-                    <option value="family">👪 عائلية</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all mt-4"
-              >
-                إدراج في بنك الأسئلة
-              </button>
+              <Button type="submit" variant="primary" fullWidth size="lg">إدراج في بنك الأسئلة</Button>
             </form>
-          </div>
+          </Card>
         )}
 
-        {/* Right Area: Table & Filters */}
-        <div className={`space-y-6 ${isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-          {/* Filters Bar */}
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
-            {/* Search */}
-            <div className="relative w-full md:w-64">
-              <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                <Search className="w-4 h-4" />
-              </span>
-              <input
+        {/* Filters + Table */}
+        <div className={cn('space-y-5', isAdmin ? 'lg:col-span-2' : 'lg:col-span-3')}>
+          {/* Filters */}
+          <div className="glass flex flex-col gap-3 rounded-[var(--radius-card)] p-4 md:flex-row md:items-center md:justify-between">
+            <div className="w-full md:w-64">
+              <Input
                 type="text"
                 placeholder="ابحث عن سؤال..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-4 pr-9 py-2 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 text-xs outline-none focus:border-purple-500"
+                icon={<Search className="h-4 w-4" />}
               />
             </div>
-
-            {/* Select Filters */}
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <Filter className="w-4 h-4 text-slate-400 hidden md:block" />
-              <select
-                value={filterDifficulty}
-                onChange={(e) => setFilterDifficulty(e.target.value)}
-                className="flex-1 md:w-36 p-2 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 text-xs outline-none"
-              >
-                <option value="all">كل الصعوبات 🌐</option>
-                <option value="easy">سهل 🟢</option>
-                <option value="medium">متوسط 🟡</option>
-                <option value="hard">صعب 🔴</option>
-              </select>
-
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="flex-1 md:w-36 p-2 rounded-xl bg-slate-900/60 border border-white/10 text-slate-100 text-xs outline-none"
-              >
-                <option value="all">كل التصنيفات 🌐</option>
-                <option value="general">عام 🌐</option>
-                <option value="islamic">🕌 إسلامية</option>
-                <option value="riddles">🧩 ألغاز</option>
-                <option value="science">🔬 علوم</option>
-                <option value="family">👪 عائلية</option>
-              </select>
+            <div className="flex items-center gap-2">
+              <Filter className="hidden h-4 w-4 text-ink-mute md:block" />
+              <Select value={filterDifficulty} onChange={(e) => setFilterDifficulty(e.target.value)} className="md:w-36">
+                <option value="all">كل الصعوبات</option>
+                <option value="easy">سهل</option>
+                <option value="medium">متوسط</option>
+                <option value="hard">صعب</option>
+              </Select>
+              <Select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="md:w-36">
+                <option value="all">كل التصنيفات</option>
+                <option value="general">عام</option>
+                <option value="islamic">إسلامية</option>
+                <option value="riddles">ألغاز</option>
+                <option value="science">علوم</option>
+                <option value="family">عائلية</option>
+              </Select>
             </div>
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl border border-white/5 bg-white/5 overflow-hidden">
+          <div className="glass overflow-hidden rounded-[var(--radius-card)]">
             {filteredQuestions.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 text-sm">
-                لا توجد أسئلة تطابق الفلاتر المحددة.
-              </div>
+              <div className="p-12 text-center text-sm text-ink-mute">لا توجد أسئلة تطابق الفلاتر المحددة.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
                   <thead>
-                    <tr className="bg-slate-900/60 border-b border-white/5 text-slate-400 uppercase tracking-wider">
+                    <tr className="border-b border-line bg-void/40 text-ink-mute">
                       <th className="p-4 font-semibold">نص السؤال</th>
                       <th className="p-4 font-semibold">التصنيف</th>
                       <th className="p-4 font-semibold">الصعوبة</th>
                       {isAdmin && <th className="p-4 font-semibold">الإجراء</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5 text-slate-200">
+                  <tbody className="divide-y divide-line text-ink-soft">
                     {filteredQuestions.map((q) => (
-                      <tr key={q.id} className="hover:bg-white/5 transition-all">
-                        <td className="p-4 max-w-sm">
-                          <p className="font-bold">{q.question_text}</p>
-                          <div className="flex gap-2.5 text-[10px] text-slate-400 mt-1 font-medium">
-                            <span className="text-green-400">1: {q.option1}</span>
-                            <span className="text-green-400">2: {q.option2}</span>
+                      <tr key={q.id} className="transition-colors hover:bg-white/5">
+                        <td className="max-w-sm p-4">
+                          <p className="font-bold text-ink">{q.question_text}</p>
+                          <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-ink-faint">
+                            <span className="text-success-bright">1: {q.option1}</span>
+                            <span className="text-success-bright">2: {q.option2}</span>
                             {q.option3 && <span>3: {q.option3}</span>}
                             {q.option4 && <span>4: {q.option4}</span>}
                           </div>
                         </td>
-                        <td className="p-4 font-medium">
-                          {q.category === 'islamic' ? '🕌 إسلامية' :
-                           q.category === 'riddles' ? '🧩 ألغاز' :
-                           q.category === 'science' ? '🔬 علوم' :
-                           q.category === 'family' ? '👪 عائلية' : 'عام 🌐'}
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            q.difficulty === 'easy' ? 'bg-green-500/10 text-green-400 border border-green-500/10' :
-                            q.difficulty === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/10' :
-                            'bg-red-500/10 text-red-400 border border-red-500/10'
-                          }`}>
-                            {q.difficulty === 'easy' ? 'سهل' :
-                             q.difficulty === 'medium' ? 'متوسط' : 'صعب'}
-                          </span>
-                        </td>
+                        <td className="p-4"><CategoryIcon category={q.category} /></td>
+                        <td className="p-4"><DifficultyBadge difficulty={q.difficulty} /></td>
                         {isAdmin && (
                           <td className="p-4">
                             <button
                               onClick={() => handleDelete(q.id)}
-                              className="p-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 transition-all"
+                              className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg border border-danger/20 bg-danger/10 text-danger-bright transition-all hover:bg-danger/20"
                               title="حذف"
+                              aria-label="حذف السؤال"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </td>
                         )}

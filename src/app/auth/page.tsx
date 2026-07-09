@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { KeyRound, Mail, User, ShieldCheck, ArrowRightLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Background from '@/components/ui/Background';
+import Button from '@/components/ui/Button';
+import { Field, Input } from '@/components/ui/Input';
+import { KeyRound, Mail, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 'lucide-react';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -22,7 +26,6 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        // Sign Up Flow
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -38,7 +41,6 @@ export default function AuthPage() {
         alert('تم التسجيل بنجاح! يمكنك الآن تسجيل الدخول.');
         setIsSignUp(false);
       } else {
-        // Sign In Flow
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -55,141 +57,145 @@ export default function AuthPage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-purple-950 to-slate-950 text-slate-100 font-sans">
-      <div className="w-full max-w-md p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl relative overflow-hidden transition-all duration-300">
-        {/* Glow effect */}
-        <div className="absolute -top-16 -left-16 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl" />
-
-        {/* Title */}
-        <div className="text-center mb-8 relative">
-          <div className="inline-flex p-3 rounded-full bg-purple-500/10 border border-purple-500/20 mb-4">
-            <ShieldCheck className="w-8 h-8 text-purple-400" />
+    <Background className="grid min-h-screen place-items-center p-4">
+      <div className="anim-rise w-full max-w-md">
+        {/* Brand */}
+        <div className="mb-8 text-center">
+          <div className="anim-float mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon-strong)]">
+            <ShieldCheck className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300">
-            مُسَابَقَة عَصُومِي
-          </h1>
-          <p className="text-slate-400 text-sm mt-2">
+          <h1 className="font-display text-3xl font-extrabold text-gradient">مُسَابَقَة عَصُومِي</h1>
+          <p className="mt-2 text-sm text-ink-mute">
             {isSignUp ? 'أنشئ حساباً جديداً للانضمام للمنصة' : 'سجل الدخول لإدارة مسابقاتك وأسئلتك'}
           </p>
         </div>
 
-        {/* Error Toast */}
-        {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/15 border border-red-500/20 text-red-300 text-sm text-center">
-            {error}
-          </div>
-        )}
+        {/* Card */}
+        <div className="glass-strong rounded-[var(--radius-card)] p-7 shadow-[var(--shadow-neon)]">
+          {/* Error */}
+          {error && (
+            <div className="anim-shake mb-5 rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-center text-sm text-danger-bright">
+              {error}
+            </div>
+          )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 relative">
-          {isSignUp && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300 block">الاسم المستعار</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <User className="w-5 h-5" />
-                </span>
-                <input
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isSignUp && (
+              <Field label="الاسم المستعار" htmlFor="username">
+                <Input
+                  id="username"
                   type="text"
                   required
                   placeholder="اسم المستخدم"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/60 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-slate-100 transition-all placeholder:text-slate-500"
+                  icon={<User className="h-5 w-5" />}
                 />
-              </div>
-            </div>
-          )}
+              </Field>
+            )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300 block">البريد الإلكتروني</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                <Mail className="w-5 h-5" />
-              </span>
-              <input
+            <Field label="البريد الإلكتروني" htmlFor="email">
+              <Input
+                id="email"
                 type="email"
                 required
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/60 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-slate-100 transition-all placeholder:text-slate-500"
+                icon={<Mail className="h-5 w-5" />}
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300 block">كلمة المرور</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                <KeyRound className="w-5 h-5" />
-              </span>
-              <input
+            <Field label="كلمة المرور" htmlFor="password">
+              <Input
+                id="password"
                 type="password"
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/60 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-slate-100 transition-all placeholder:text-slate-500"
+                icon={<KeyRound className="h-5 w-5" />}
               />
-            </div>
+            </Field>
+
+            {isSignUp && (
+              <Field label="نوع الحساب / الصلاحيات">
+                <div className="grid grid-cols-2 gap-3">
+                  <RoleButton
+                    active={role === 'presenter'}
+                    onClick={() => setRole('presenter')}
+                    icon={<Mic className="h-5 w-5" />}
+                    label="مقدم مسابقة"
+                  />
+                  <RoleButton
+                    active={role === 'admin'}
+                    onClick={() => setRole('admin')}
+                    icon={<Settings className="h-5 w-5" />}
+                    label="مدير النظام"
+                  />
+                </div>
+              </Field>
+            )}
+
+            <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading} className="mt-2">
+              {loading ? 'جاري التحميل...' : isSignUp ? 'تسجيل حساب جديد' : 'تسجيل الدخول'}
+            </Button>
+          </form>
+
+          {/* Toggle */}
+          <div className="mt-6 border-t border-line pt-5 text-center text-sm text-ink-mute">
+            {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب بعد؟'}{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-neon-bright underline-offset-2 hover:underline"
+            >
+              <ArrowRightLeft className="h-4 w-4" />
+              {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
+            </button>
           </div>
-
-          {isSignUp && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300 block">نوع الحساب / الصلاحيات</label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setRole('presenter')}
-                  className={`py-3 rounded-xl border text-center transition-all ${
-                    role === 'presenter'
-                      ? 'bg-purple-500/20 border-purple-500 text-purple-300 font-bold'
-                      : 'bg-slate-900/40 border-white/5 text-slate-400'
-                  }`}
-                >
-                  مقدم مسابقة 🎙️
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`py-3 rounded-xl border text-center transition-all ${
-                    role === 'admin'
-                      ? 'bg-purple-500/20 border-purple-500 text-purple-300 font-bold'
-                      : 'bg-slate-900/40 border-white/5 text-slate-400'
-                  }`}
-                >
-                  مدير النظام ⚙️
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold transition-all shadow-lg hover:shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? 'جاري التحميل...' : isSignUp ? 'تسجيل حساب جديد' : 'تسجيل الدخول'}
-          </button>
-        </form>
-
-        {/* Toggle between login/signup */}
-        <div className="mt-8 pt-6 border-t border-white/10 text-center text-sm text-slate-400">
-          {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب بعد؟'}{' '}
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError('');
-            }}
-            className="text-purple-400 hover:text-purple-300 font-semibold underline inline-flex items-center gap-1.5"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
-          </button>
         </div>
+
+        {/* Back home */}
+        <button
+          onClick={() => router.push('/')}
+          className="mx-auto mt-5 flex cursor-pointer items-center gap-1.5 text-xs text-ink-faint transition-colors hover:text-ink-mute"
+        >
+          <Zap className="h-3.5 w-3.5" />
+          العودة للصفحة الرئيسية
+        </button>
       </div>
-    </main>
+    </Background>
+  );
+}
+
+function RoleButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex cursor-pointer flex-col items-center gap-2 rounded-xl border py-4 text-xs font-bold transition-all duration-200',
+        active
+          ? 'border-neon/60 bg-neon/15 text-neon-bright shadow-[var(--shadow-neon)]'
+          : 'border-line bg-void-2/50 text-ink-mute hover:border-line-strong hover:text-ink-soft'
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
