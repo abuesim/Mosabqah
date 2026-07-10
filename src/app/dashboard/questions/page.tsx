@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import {
@@ -15,6 +16,32 @@ import { Field, Input, Textarea, Select } from '@/components/ui/Input';
 import DifficultyBadge from '@/components/ui/DifficultyBadge';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import Spinner from '@/components/ui/Spinner';
+
+const CATEGORIES = [
+  { value: 'all', label: '🗂️ الكل' },
+  { value: 'عامة', label: '🌍 عامة' },
+  { value: 'إسلامية', label: '🕌 إسلامية' },
+  { value: 'ألغاز', label: '🧩 ألغاز' },
+  { value: 'علوم', label: '🔬 علوم' },
+  { value: 'عائلية', label: '🏠 عائلية' },
+  { value: 'تاريخ', label: '📜 تاريخ' },
+  { value: 'جغرافيا', label: '🗺️ جغرافيا' },
+  { value: 'رياضة', label: '⚽ رياضة' }
+];
+
+export function normalizeCategory(cat: string): string {
+  if (!cat) return 'عامة';
+  const c = cat.trim().toLowerCase();
+  if (c === 'general' || c === 'general' || c === 'عام' || c === 'عامة') return 'عامة';
+  if (c === 'islamic' || c === 'إسلامي' || c === 'إسلامية') return 'إسلامية';
+  if (c === 'riddles' || c === 'لغز' || c === 'ألغاز') return 'ألغاز';
+  if (c === 'science' || c === 'علم' || c === 'علوم') return 'علوم';
+  if (c === 'family' || c === 'عائلة' || c === 'عائلية') return 'عائلية';
+  if (c === 'history' || c === 'التاريخ' || c === 'تاريخ') return 'تاريخ';
+  if (c === 'geography' || c === 'الجغرافيا' || c === 'جغرافيا') return 'جغرافيا';
+  if (c === 'sports' || c === 'الرياضة' || c === 'رياضة') return 'رياضة';
+  return cat.trim();
+}
 
 export default function QuestionsPage() {
   const [profile, setProfile] = useState<{ id: string; username: string; role: string } | null>(null);
@@ -32,7 +59,7 @@ export default function QuestionsPage() {
   const [option4, setOption4] = useState('');
   const [correctOption, setCorrectOption] = useState<number>(1);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [category, setCategory] = useState('general');
+  const [category, setCategory] = useState('عامة');
 
   // Filter Fields
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,7 +68,7 @@ export default function QuestionsPage() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      if (!user) { setLoading(false); window.location.href = '/auth'; return; }
       try {
         const userProfile = await getUserProfile(user.uid);
         if (userProfile) setProfile({ id: userProfile.uid, username: userProfile.username, role: userProfile.role });
@@ -64,7 +91,7 @@ export default function QuestionsPage() {
       result = result.filter(q => q.difficulty === filterDifficulty);
     }
     if (filterCategory !== 'all') {
-      result = result.filter(q => q.category === filterCategory);
+      result = result.filter(q => normalizeCategory(q.category) === filterCategory);
     }
     setFilteredQuestions(result);
   }, [searchQuery, filterDifficulty, filterCategory, questions]);
@@ -122,7 +149,7 @@ export default function QuestionsPage() {
     }
   };
 
-  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!profile || profile.role !== 'admin') {
       setError('عذراً، الأدمن فقط يمكنه رفع الأسئلة.');
       return;
@@ -135,37 +162,86 @@ export default function QuestionsPage() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        const rows = lines.slice(1);
-        const listToInsert = rows.map(row => {
-          const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
-          if (cols.length < 7) return null;
+        const data = event.target?.result;
+        if (!data) return;
+
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Parse worksheet into rows (header: 1 returns 2D array of strings/numbers)
+        const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+        if (rows.length < 2) {
+          setError('الملف فارغ أو لا يحتوي على أسطر صالحة.');
+          return;
+        }
+
+        // Detect column indices based on header names (case-insensitive & clean)
+        const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+        
+        const textIdx = headers.findIndex(h => h.includes('text') || h.includes('سؤال') || h === 'question_text');
+        const opt1Idx = headers.findIndex(h => h === 'option1' || h.includes('خيار1') || h.includes('الاول') || h.includes('الأول'));
+        const opt2Idx = headers.findIndex(h => h === 'option2' || h.includes('خيار2') || h.includes('الثاني'));
+        const opt3Idx = headers.findIndex(h => h === 'option3' || h.includes('خيار3') || h.includes('الثالث'));
+        const opt4Idx = headers.findIndex(h => h === 'option4' || h.includes('خيار4') || h.includes('الرابع'));
+        const correctIdx = headers.findIndex(h => h.includes('correct') || h.includes('صحيح') || h === 'correct_option');
+        const catIdx = headers.findIndex(h => h === 'category' || h.includes('قسم') || h.includes('تصنيف') || h === 'التصنيف');
+        const diffIdx = headers.findIndex(h => h === 'difficulty' || h.includes('صعوب') || h === 'الصعوبة');
+
+        const getColVal = (row: any[], headerIdx: number, fallbackIdx: number) => {
+          const idx = headerIdx !== -1 ? headerIdx : fallbackIdx;
+          return row[idx] !== undefined && row[idx] !== null ? String(row[idx]).trim() : '';
+        };
+
+        const listToInsert = rows.slice(1).map(row => {
+          if (!row || row.length < 3) return null;
+          
+          const qText = getColVal(row, textIdx, 0);
+          if (!qText) return null;
+
+          const opt1 = getColVal(row, opt1Idx, 1);
+          const opt2 = getColVal(row, opt2Idx, 2);
+          const opt3 = getColVal(row, opt3Idx, 3);
+          const opt4 = getColVal(row, opt4Idx, 4);
+
+          const correctStr = getColVal(row, correctIdx, 5);
+          const correctOption = parseInt(correctStr, 10) || 1;
+
+          const rawCat = getColVal(row, catIdx, 6) || 'عامة';
+          const cat = normalizeCategory(rawCat);
+
+          const diffRaw = getColVal(row, diffIdx, 7).toLowerCase();
+          let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+          if (diffRaw.includes('سهل') || diffRaw.includes('easy')) difficulty = 'easy';
+          else if (diffRaw.includes('صعب') || diffRaw.includes('hard')) difficulty = 'hard';
+
           return {
-            questionText: cols[0],
-            option1: cols[1],
-            option2: cols[2],
-            option3: cols[3] || '',
-            option4: cols[4] || '',
-            correctOption: parseInt(cols[5], 10) || 1,
-            difficulty: (cols[6] || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard',
-            category: cols[7] || 'general',
+            questionText: qText,
+            option1: opt1,
+            option2: opt2,
+            option3: opt3,
+            option4: opt4,
+            correctOption,
+            difficulty,
+            category: cat,
             createdBy: profile.id,
           };
         }).filter((item): item is NonNullable<typeof item> => item !== null);
 
         if (listToInsert.length === 0) {
-          setError('لم يتم العثور على أسطر صالحة للاستيراد.');
+          setError('لم يتم العثور على أسطر صالحة للاستيراد. تأكد من تطابق عناوين الأعمدة.');
           return;
         }
+
         const count = await bulkAddQuestions(listToInsert);
         setSuccess(`تم استيراد ${count} سؤال بنجاح من الملف!`);
         await fetchQuestions();
       } catch (err: any) {
-        setError(err.message || 'خطأ في معالجة أو رفع ملف CSV.');
+        console.error('Error parsing file:', err);
+        setError(err.message || 'خطأ في معالجة أو رفع ملف Excel/CSV.');
       }
     };
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   };
 
   if (loading) {
@@ -196,8 +272,8 @@ export default function QuestionsPage() {
         {isAdmin && (
           <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-neon/30 bg-neon/10 px-4 py-2.5 text-xs font-bold text-neon-bright transition-all hover:bg-neon/20">
             <Upload className="h-4 w-4" />
-            رفع ملف CSV
-            <input type="file" accept=".csv" onChange={handleCsvUpload} className="hidden" />
+            استيراد أسئلة (Excel / CSV)
+            <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} className="hidden" />
           </label>
         )}
       </div>
@@ -263,11 +339,14 @@ export default function QuestionsPage() {
                 </Field>
                 <Field label="التصنيف">
                   <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-                    <option value="general">عام</option>
-                    <option value="islamic">إسلامية</option>
-                    <option value="riddles">ألغاز</option>
-                    <option value="science">علوم</option>
-                    <option value="family">عائلية</option>
+                    <option value="عامة">عامة</option>
+                    <option value="إسلامية">إسلامية</option>
+                    <option value="علوم">علوم</option>
+                    <option value="ألغاز">ألغاز</option>
+                    <option value="عائلية">عائلية</option>
+                    <option value="تاريخ">تاريخ</option>
+                    <option value="جغرافيا">جغرافيا</option>
+                    <option value="رياضة">رياضة</option>
                   </Select>
                 </Field>
               </div>
@@ -297,15 +376,29 @@ export default function QuestionsPage() {
                 <option value="medium">متوسط</option>
                 <option value="hard">صعب</option>
               </Select>
-              <Select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="md:w-36">
-                <option value="all">كل التصنيفات</option>
-                <option value="general">عام</option>
-                <option value="islamic">إسلامية</option>
-                <option value="riddles">ألغاز</option>
-                <option value="science">علوم</option>
-                <option value="family">عائلية</option>
-              </Select>
             </div>
+          </div>
+
+          {/* Category Tabs / Buttons */}
+          <div className="flex flex-wrap gap-2 pb-1 overflow-x-auto no-scrollbar">
+            {CATEGORIES.map((cat) => {
+              const isActive = filterCategory === cat.value;
+              return (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setFilterCategory(cat.value)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer select-none",
+                    isActive
+                      ? "bg-neon/15 text-neon-bright border-neon/40 shadow-[var(--shadow-neon-soft)]"
+                      : "bg-void/40 text-ink-mute border-line hover:text-ink hover:bg-void/60"
+                  )}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="glass overflow-hidden rounded-[var(--radius-card)]">
