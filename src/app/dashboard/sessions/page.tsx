@@ -12,7 +12,7 @@ import {
 } from '@/lib/db';
 import type { Session, Question, Player, UserProfile } from '@/lib/db';
 import { cn } from '@/lib/utils';
-import { Layers, Plus, Play, CheckSquare, Square, ArrowRight, Users, Radio, Flame } from 'lucide-react';
+import { Layers, Plus, Play, CheckSquare, Square, ArrowRight, Users, Radio, Flame, Sparkles } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card, { CardHeader } from '@/components/ui/Card';
 import { Field, Input, Select } from '@/components/ui/Input';
@@ -49,10 +49,17 @@ function SessionsPageContent() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [answersCount, setAnswersCount] = useState(0);
 
+  // Presenter controls
+  const [hintInput, setHintInput] = useState('');
+  const [tvBgColorInput, setTvBgColorInput] = useState('#090514');
+  const [tvLogoTextInput, setTvLogoTextInput] = useState('مسابقة عصومي');
+  const [tvFontSizeInput, setTvFontSizeInput] = useState<'sm' | 'md' | 'lg' | 'xl'>('lg');
+  const [tvChromaInput, setTvChromaInput] = useState<'normal' | 'chroma' | 'transparent'>('normal');
+
   // Initial load (profile + question bank + own sessions)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      if (!user) { setLoading(false); window.location.href = '/auth'; return; }
       try {
         const userProfile = await getUserProfile(user.uid);
         if (userProfile) setProfile(userProfile);
@@ -86,6 +93,10 @@ function SessionsPageContent() {
       const session = await getSessionById(activeSessionId);
       if (!session) return;
       setActiveSession(session);
+      if ((session as any).tvBgColor) setTvBgColorInput((session as any).tvBgColor);
+      if ((session as any).tvLogoText) setTvLogoTextInput((session as any).tvLogoText);
+      if ((session as any).tvFontSize) setTvFontSizeInput((session as any).tvFontSize);
+      if ((session as any).overlayMode) setTvChromaInput((session as any).overlayMode);
 
       // Load session's questions
       if (session.questionIds?.length) {
@@ -263,6 +274,40 @@ function SessionsPageContent() {
       questionStatus: 'idle',
     });
     router.push('/dashboard/sessions');
+  };
+
+  const handleBroadcastHint = async () => {
+    if (!activeSession || !hintInput.trim()) return;
+    try {
+      await updateSession(activeSession.id, {
+        currentHint: hintInput.trim()
+      });
+      setHintInput('');
+      setSuccess('تم بث التلميح للمتسابقين بنجاح!');
+      // Auto clear after 6 seconds
+      setTimeout(async () => {
+        await updateSession(activeSession.id, {
+          currentHint: null
+        });
+      }, 6000);
+    } catch (err: any) {
+      setError(err.message || 'خطأ في بث التلميح');
+    }
+  };
+
+  const handleUpdateTvSettings = async () => {
+    if (!activeSession) return;
+    try {
+      await updateSession(activeSession.id, {
+        tvBgColor: tvBgColorInput,
+        tvLogoText: tvLogoTextInput,
+        tvFontSize: tvFontSizeInput,
+        overlayMode: tvChromaInput,
+      });
+      setSuccess('تم تحديث إعدادات شاشة العرض بنجاح!');
+    } catch (err: any) {
+      setError(err.message || 'خطأ في تحديث إعدادات الشاشة');
+    }
   };
 
   if (loading) {
@@ -447,6 +492,74 @@ function SessionsPageContent() {
                   ))}
                 </div>
               )}
+            </Card>
+
+            {/* Hint broadcaster */}
+            <Card className="p-6">
+              <CardHeader title="بث تلميح فوري للمتسابقين" icon={<Sparkles className="h-5 w-5" />} accent="neon" />
+              <div className="mt-4 space-y-4">
+                <p className="text-[11px] text-ink-mute">سيظهر هذا التلميح كرسالة منبثقة في شاشات المتسابقين فوراً لمساعدتهم.</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="اكتب التلميح هنا (مثال: الإجابة في العلوم)"
+                    value={hintInput}
+                    onChange={(e) => setHintInput(e.target.value)}
+                  />
+                  <Button variant="primary" onClick={handleBroadcastHint} disabled={!hintInput.trim()}>
+                    بث 💡
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {/* TV Customize Settings */}
+            <Card className="p-6">
+              <CardHeader title="إعدادات الشاشة التلفزيونية" icon={<Layers className="h-5 w-5" />} accent="cyan" />
+              <div className="mt-4 space-y-4">
+                <Field label="شعار / عنوان التلفزيون">
+                  <Input
+                    value={tvLogoTextInput}
+                    onChange={(e) => setTvLogoTextInput(e.target.value)}
+                    placeholder="شعار المسابقة المعروض"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="حجم الخط">
+                    <Select value={tvFontSizeInput} onChange={(e: any) => setTvFontSizeInput(e.target.value)}>
+                      <option value="sm">صغير</option>
+                      <option value="md">متوسط</option>
+                      <option value="lg">كبير</option>
+                      <option value="xl">ضخم</option>
+                    </Select>
+                  </Field>
+                  <Field label="وضع الخلفية">
+                    <Select value={tvChromaInput} onChange={(e: any) => setTvChromaInput(e.target.value)}>
+                      <option value="normal">افتراضية نيون</option>
+                      <option value="chroma">كروما خضراء</option>
+                      <option value="transparent">شفافة كاملة</option>
+                    </Select>
+                  </Field>
+                </div>
+                <Field label="لون الخلفية المخصص (HEX)">
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={tvBgColorInput}
+                      onChange={(e) => setTvBgColorInput(e.target.value)}
+                      className="w-12 h-9 p-0 bg-transparent border-0 cursor-pointer"
+                    />
+                    <Input
+                      value={tvBgColorInput}
+                      onChange={(e) => setTvBgColorInput(e.target.value)}
+                      placeholder="#090514"
+                      className="font-mono flex-1"
+                    />
+                  </div>
+                </Field>
+                <Button variant="primary" fullWidth onClick={handleUpdateTvSettings}>
+                  تطبيق الإعدادات على التلفزيون 📺
+                </Button>
+              </div>
             </Card>
           </div>
         </div>

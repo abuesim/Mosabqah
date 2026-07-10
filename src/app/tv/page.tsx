@@ -185,19 +185,36 @@ function TvPageContent() {
     );
   }
 
+  const currentOverlayMode = (session as any).overlayMode || overlayMode;
+
+  const bgStyle: React.CSSProperties = {};
+  if (currentOverlayMode === 'normal') {
+    bgStyle.backgroundColor = (session as any).tvBgColor || '#090514';
+  } else if (currentOverlayMode === 'chroma') {
+    bgStyle.backgroundColor = '#00ff00';
+  } else {
+    bgStyle.backgroundColor = 'transparent';
+  }
+
   const bgClass =
-    overlayMode === 'chroma' ? 'bg-[#00ff00] text-black' :
-    overlayMode === 'transparent' ? 'bg-transparent text-ink' :
-    'bg-void text-ink';
+    currentOverlayMode === 'chroma' ? 'text-black font-semibold' :
+    currentOverlayMode === 'transparent' ? 'text-ink' :
+    'text-ink';
 
   const panelClass =
-    overlayMode === 'chroma' ? 'bg-white border-2 border-black text-black' :
+    currentOverlayMode === 'chroma' ? 'bg-white border-2 border-black text-black' :
     'glass text-ink';
+
+  const fontSizeClass =
+    (session as any).tvFontSize === 'sm' ? 'scale-90 origin-center' :
+    (session as any).tvFontSize === 'md' ? 'scale-95 origin-center' :
+    (session as any).tvFontSize === 'xl' ? 'scale-105 origin-center' :
+    'scale-100';
 
   // PREP COUNTDOWN
   if (prepCountdown !== null) {
     return (
-      <main className={cn('min-h-screen grid place-items-center p-6 transition-colors duration-300', bgClass)}>
+      <main className={cn('min-h-screen grid place-items-center p-6 transition-all duration-300', bgClass)} style={bgStyle}>
         <div className="text-center">
           <h2 className="mb-4 font-display text-2xl font-extrabold uppercase tracking-[0.3em] text-neon-bright anim-pulse-neon">
             استعد للسؤال التالي
@@ -211,15 +228,26 @@ function TvPageContent() {
   }
 
   return (
-    <main className={cn('relative min-h-screen flex flex-col justify-between p-6 transition-colors duration-300 md:p-12', bgClass)}>
-      {overlayMode === 'normal' && (
+    <main className={cn('relative min-h-screen flex flex-col justify-between p-6 transition-all duration-300 md:p-12', bgClass, fontSizeClass)} style={bgStyle}>
+      {currentOverlayMode === 'normal' && (
         <>
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-mesh opacity-70" />
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid opacity-50" />
         </>
       )}
 
-      {/* Clean feed controls */}
+      {/* Event Logo Header */}
+      {currentOverlayMode !== 'transparent' && (
+        <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4 select-none shrink-0">
+          <h1 className="font-brand text-xl text-gradient">
+            {(session as any).tvLogoText || session.title}
+          </h1>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-neon-bright animate-pulse" />
+            <span className="font-display text-[9px] uppercase font-bold text-ink-mute tracking-wider">Clean Output Broadcast</span>
+          </div>
+        </div>
+      )}
       <div className="absolute bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl border border-line bg-void/80 p-2 opacity-40 backdrop-blur-md transition-opacity hover:opacity-100">
         <span className="px-2 text-[10px] font-bold text-ink-mute">شاشة المخرج:</span>
         {[
@@ -249,7 +277,7 @@ function TvPageContent() {
               <Radio className="h-4 w-4 anim-pulse-neon text-danger-bright" />
               <span className="text-xs font-bold uppercase tracking-widest text-neon-bright">بث مباشر</span>
             </div>
-            <h1 className="font-brand text-5xl text-gradient md:text-6xl">{session.title}</h1>
+            <h1 className="font-brand text-5xl text-gradient md:text-6xl">{(session as any).tvLogoText || session.title}</h1>
             <p className="text-sm text-ink-mute md:text-lg">تحدّي معلومات لحظي مباشر. انضم إلينا الآن للعب!</p>
           </div>
 

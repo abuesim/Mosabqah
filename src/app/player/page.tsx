@@ -43,6 +43,7 @@ function PlayerPageContent() {
   const [lifelinesRemaining, setLifelinesRemaining] = useState(2);
   const [lifelinesTimeRemaining, setLifelinesTimeRemaining] = useState(2);
   const [hiddenOptions, setHiddenOptions] = useState<number[]>([]);
+  const [hint, setHint] = useState<string | null>(null);
 
   // Timer
   const [secondsLeft, setSecondsLeft] = useState(30);
@@ -74,6 +75,15 @@ function PlayerPageContent() {
     unsubs.push(
       subscribeSession(session.id, async (newSess) => {
         if (!newSess) return;
+
+        // Broadcast Hint handling
+        if (newSess.currentHint && newSess.currentHint !== sessionRef.current?.currentHint) {
+          setHint(newSess.currentHint);
+          setTimeout(() => {
+            setHint(null);
+          }, 6000);
+        }
+
         setSession(newSess);
         setQuestionStatus(newSess.questionStatus);
 
@@ -325,6 +335,14 @@ function PlayerPageContent() {
               )}
             </div>
           </div>
+
+          {/* Hint popup */}
+          {hint && (
+            <div className="anim-rise border border-neon/30 bg-neon-deep/40 backdrop-blur-md rounded-2xl p-3.5 text-center flex items-center justify-center gap-2 shadow-[var(--shadow-neon-soft)]">
+              <span className="text-neon-bright animate-bounce">💡</span>
+              <span className="text-xs font-bold text-slate-100">تلميح المقدم: {hint}</span>
+            </div>
+          )}
 
           {/* Lifelines */}
           {session.status === 'active' && questionStatus === 'showing' && !hasAnswered && (

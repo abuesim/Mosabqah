@@ -70,6 +70,11 @@ export interface Session {
   createdBy: string;
   createdAt?: any;
   questionIds: string[];
+  currentHint?: string | null;
+  tvBgColor?: string;
+  tvLogoText?: string;
+  tvFontSize?: 'sm' | 'md' | 'lg' | 'xl';
+  overlayMode?: 'normal' | 'chroma' | 'transparent';
 }
 
 export interface Player {
