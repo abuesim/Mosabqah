@@ -21,6 +21,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
@@ -144,6 +146,29 @@ export async function signUp(username: string, password: string, role: Role): Pr
 export async function signIn(username: string, password: string): Promise<void> {
   const email = toInternalEmail(username);
   await signInWithEmailAndPassword(auth, email, password);
+}
+
+/** Sign in with Google provider. */
+export async function signInWithGoogle(): Promise<UserProfile> {
+  const provider = new GoogleAuthProvider();
+  const cred = await signInWithPopup(auth, provider);
+  const user = cred.user;
+  const uid = user.uid;
+
+  const docRef = doc(db, 'users', uid);
+  const snap = await getDoc(docRef);
+
+  if (!snap.exists()) {
+    const profile = {
+      username: user.displayName || user.email?.split('@')[0] || 'مستخدم جوجل',
+      role: 'presenter' as Role,
+      createdAt: serverTimestamp(),
+    };
+    await setDoc(docRef, profile);
+    return { uid, ...profile };
+  }
+
+  return { uid, ...(snap.data() as any) };
 }
 
 /** Returns current Firebase user or null. Synchronous-ish via currentUser. */
