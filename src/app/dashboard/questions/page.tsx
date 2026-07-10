@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import {
+  getUserProfile, getQuestions, addQuestion, deleteQuestion, bulkAddQuestions,
+} from '@/lib/db';
+import type { Question } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { Plus, Trash2, Search, BookOpen, Upload, Filter } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -13,8 +18,8 @@ import Spinner from '@/components/ui/Spinner';
 
 export default function QuestionsPage() {
   const [profile, setProfile] = useState<{ id: string; username: string; role: string } | null>(null);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -35,26 +40,25 @@ export default function QuestionsPage() {
   const [filterCategory, setFilterCategory] = useState('all');
 
   useEffect(() => {
-    async function init() {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data: userProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (userProfile) setProfile(userProfile);
+        const userProfile = await getUserProfile(user.uid);
+        if (userProfile) setProfile({ id: userProfile.uid, username: userProfile.username, role: userProfile.role });
         await fetchQuestions();
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
-    }
-    init();
+    });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
     let result = [...questions];
     if (searchQuery.trim()) {
-      result = result.filter(q => q.question_text.toLowerCase().includes(searchQuery.toLowerCase()));
+      result = result.filter(q => q.questionText.toLowerCase().includes(searchQuery.toLowerCase()));
     }
     if (filterDifficulty !== 'all') {
       result = result.filter(q => q.difficulty === filterDifficulty);
@@ -66,11 +70,9 @@ export default function QuestionsPage() {
   }, [searchQuery, filterDifficulty, filterCategory, questions]);
 
   const fetchQuestions = async () => {
-    const { data } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
-    if (data) {
-      setQuestions(data);
-      setFilteredQuestions(data);
-    }
+    const data = await getQuestions();
+    setQuestions(data);
+    setFilteredQuestions(data);
   };
 
   const handleAddQuestion = async (e: React.FormEvent) => {
@@ -82,18 +84,17 @@ export default function QuestionsPage() {
     setError('');
     setSuccess('');
     try {
-      const { error: insertError } = await supabase.from('questions').insert({
-        question_text: questionText,
+      await addQuestion({
+        questionText,
         option1,
         option2,
         option3: option3 || '',
         option4: option4 || '',
-        correct_option: correctOption,
+        correctOption,
         difficulty,
         category,
-        created_by: profile.id
+        createdBy: profile.id,
       });
-      if (insertError) throw insertError;
       setSuccess('تم إضافة السؤال بنجاح إلى بنك الأسئلة!');
       setQuestionText('');
       setOption1('');
@@ -106,15 +107,14 @@ export default function QuestionsPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!profile || profile.role !== 'admin') {
       setError('عذراً، الأدمن فقط يمكنه مسح الأسئلة.');
       return;
     }
     if (!confirm('هل أنت متأكد من رغبتك في حذف هذا السؤال نهائياً؟')) return;
     try {
-      const { error: deleteError } = await supabase.from('questions').delete().eq('id', id);
-      if (deleteError) throw deleteError;
+      await deleteQuestion(id);
       setSuccess('تم حذف السؤال بنجاح.');
       await fetchQuestions();
     } catch (err: any) {
@@ -142,15 +142,15 @@ export default function QuestionsPage() {
           const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
           if (cols.length < 7) return null;
           return {
-            question_text: cols[0],
+            questionText: cols[0],
             option1: cols[1],
             option2: cols[2],
             option3: cols[3] || '',
             option4: cols[4] || '',
-            correct_option: parseInt(cols[5], 10) || 1,
-            difficulty: (cols[6] || 'medium').toLowerCase() as any,
+            correctOption: parseInt(cols[5], 10) || 1,
+            difficulty: (cols[6] || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard',
             category: cols[7] || 'general',
-            created_by: profile.id
+            createdBy: profile.id,
           };
         }).filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -158,9 +158,8 @@ export default function QuestionsPage() {
           setError('لم يتم العثور على أسطر صالحة للاستيراد.');
           return;
         }
-        const { error: bulkError } = await supabase.from('questions').insert(listToInsert);
-        if (bulkError) throw bulkError;
-        setSuccess(`تم استيراد ${listToInsert.length} سؤال بنجاح من الملف!`);
+        const count = await bulkAddQuestions(listToInsert);
+        setSuccess(`تم استيراد ${count} سؤال بنجاح من الملف!`);
         await fetchQuestions();
       } catch (err: any) {
         setError(err.message || 'خطأ في معالجة أو رفع ملف CSV.');
@@ -280,7 +279,6 @@ export default function QuestionsPage() {
 
         {/* Filters + Table */}
         <div className={cn('space-y-5', isAdmin ? 'lg:col-span-2' : 'lg:col-span-3')}>
-          {/* Filters */}
           <div className="glass flex flex-col gap-3 rounded-[var(--radius-card)] p-4 md:flex-row md:items-center md:justify-between">
             <div className="w-full md:w-64">
               <Input
@@ -310,7 +308,6 @@ export default function QuestionsPage() {
             </div>
           </div>
 
-          {/* Table */}
           <div className="glass overflow-hidden rounded-[var(--radius-card)]">
             {filteredQuestions.length === 0 ? (
               <div className="p-12 text-center text-sm text-ink-mute">لا توجد أسئلة تطابق الفلاتر المحددة.</div>
@@ -329,7 +326,7 @@ export default function QuestionsPage() {
                     {filteredQuestions.map((q) => (
                       <tr key={q.id} className="transition-colors hover:bg-white/5">
                         <td className="max-w-sm p-4">
-                          <p className="font-bold text-ink">{q.question_text}</p>
+                          <p className="font-bold text-ink">{q.questionText}</p>
                           <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-ink-faint">
                             <span className="text-success-bright">1: {q.option1}</span>
                             <span className="text-success-bright">2: {q.option2}</span>

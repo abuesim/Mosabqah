@@ -2,13 +2,20 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import {
+  getSessionByRoomCode, getPlayerByName, createPlayer,
+  getSessionQuestions, submitAnswer, getPlayerAnswer,
+  updatePlayer, updateSession,
+  subscribeSession, subscribePlayer,
+} from '@/lib/db';
+import type { Session, Player, Question } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { ShieldCheck, User, KeyRound, Clock, CheckCircle, XCircle, Trophy, Scissors, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Background from '@/components/ui/Background';
 import Button from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Input';
+import type { Unsubscribe } from 'firebase/firestore';
 
 import { Suspense } from 'react';
 
@@ -19,13 +26,13 @@ function PlayerPageContent() {
   // Connection Steps
   const [step, setStep] = useState(1);
   const [roomCode, setRoomCode] = useState(urlRoomCode || '');
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [playerColor, setPlayerColor] = useState('#22d3ee');
-  const [player, setPlayer] = useState<any>(null);
+  const [player, setPlayer] = useState<Player | null>(null);
 
   // Game States
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [questionStatus, setQuestionStatus] = useState<string>('idle');
   const [hasAnswered, setHasAnswered] = useState(false);
   const [chosenOption, setChosenOption] = useState<number | null>(null);
@@ -42,7 +49,12 @@ function PlayerPageContent() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
 
-  // Neon player palette (vibrant)
+  // Refs to hold latest session/player for use inside subscription callbacks
+  const sessionRef = useRef<Session | null>(null);
+  const playerRef = useRef<Player | null>(null);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => { playerRef.current = player; }, [player]);
+
   const colors = ['#22d3ee', '#a855f7', '#f87171', '#4ade80', '#fbbf24', '#e879f9'];
 
   useEffect(() => {
@@ -52,42 +64,52 @@ function PlayerPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlRoomCode]);
 
-  // Realtime Session and Player subscriptions
+  // Realtime subscriptions (session + own player row)
   useEffect(() => {
     if (!player?.id || !session?.id) return;
 
-    const sessionChannel = supabase
-      .channel(`player-session-${session.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` }, (payload) => {
-        const newSess = payload.new;
-        setSession(newSess);
-        setQuestionStatus(newSess.question_status);
+    const unsubs: Unsubscribe[] = [];
 
-        if (newSess.question_status === 'showing') {
+    // 1. Session doc changes
+    unsubs.push(
+      subscribeSession(session.id, async (newSess) => {
+        if (!newSess) return;
+        setSession(newSess);
+        setQuestionStatus(newSess.questionStatus);
+
+        if (newSess.questionStatus === 'showing') {
           setHasAnswered(false);
           setChosenOption(null);
           setIsCorrect(null);
           setHiddenOptions([]);
-          fetchQuestion(newSess.current_question_id, newSess.timer_duration);
-        } else if (newSess.question_status === 'revealed') {
+          if (newSess.currentQuestionId) {
+            const qList = await getSessionQuestions([newSess.currentQuestionId]);
+            if (qList[0]) {
+              setCurrentQuestion(qList[0]);
+              setSecondsLeft(newSess.timerDuration);
+              startTimeRef.current = Date.now();
+              startTimer(newSess.timerDuration);
+            }
+          }
+        } else if (newSess.questionStatus === 'revealed') {
           revealAnswer();
         }
       })
-      .subscribe();
+    );
 
-    const playerChannel = supabase
-      .channel(`player-self-${player.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'players', filter: `id=eq.${player.id}` }, (payload) => {
-        setPlayer(payload.new);
-        setStreak(payload.new.streak || 0);
-        setLifelinesRemaining(payload.new.lifelines_remaining);
-        setLifelinesTimeRemaining(payload.new.lifelines_time_remaining);
+    // 2. Own player row changes (score, streak, lifelines)
+    unsubs.push(
+      subscribePlayer(session.id, player.id, (newPlayer) => {
+        if (!newPlayer) return;
+        setPlayer(newPlayer);
+        setStreak(newPlayer.streak || 0);
+        setLifelinesRemaining(newPlayer.lifelinesRemaining);
+        setLifelinesTimeRemaining(newPlayer.lifelinesTimeRemaining);
       })
-      .subscribe();
+    );
 
     return () => {
-      supabase.removeChannel(sessionChannel);
-      supabase.removeChannel(playerChannel);
+      unsubs.forEach(u => u && u());
       stopTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,8 +117,8 @@ function PlayerPageContent() {
 
   const handleVerifyRoom = async () => {
     if (!roomCode.trim()) return;
-    const { data, error } = await supabase.from('sessions').select('*').eq('room_code', roomCode.trim()).single();
-    if (error || !data) {
+    const data = await getSessionByRoomCode(roomCode.trim());
+    if (!data) {
       alert('خطأ: رمز الغرفة غير موجود أو غير صالح.');
       return;
     }
@@ -105,52 +127,25 @@ function PlayerPageContent() {
   };
 
   const handleJoinGame = async () => {
-    if (!playerName.trim()) return;
-    const { data: existingPlayer } = await supabase
-      .from('players')
-      .select('*')
-      .eq('session_id', session.id)
-      .eq('name', playerName.trim())
-      .single();
-
-    if (existingPlayer) {
-      setPlayer(existingPlayer);
-      setStreak(existingPlayer.streak || 0);
+    if (!playerName.trim() || !session) return;
+    const existing = await getPlayerByName(session.id, playerName.trim());
+    if (existing) {
+      setPlayer(existing);
+      setStreak(existing.streak || 0);
       setStep(3);
       return;
     }
-
-    const { data: newPlayer, error } = await supabase
-      .from('players')
-      .insert({
-        session_id: session.id,
-        name: playerName.trim(),
-        color: playerColor,
-        score: 0,
-        streak: 0,
-        lifelines_remaining: 2,
-        lifelines_time_remaining: 2,
-        is_active: true
-      })
-      .select()
-      .single();
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    const newPlayer = await createPlayer(session.id, {
+      name: playerName.trim(),
+      color: playerColor,
+      score: 0,
+      streak: 0,
+      lifelinesRemaining: 2,
+      lifelinesTimeRemaining: 2,
+      isActive: true,
+    });
     setPlayer(newPlayer);
     setStep(3);
-  };
-
-  const fetchQuestion = async (qid: number, duration: number) => {
-    const { data } = await supabase.from('questions').select('*').eq('id', qid).single();
-    if (data) {
-      setCurrentQuestion(data);
-      setSecondsLeft(duration);
-      startTimeRef.current = Date.now();
-      startTimer(duration);
-    }
   };
 
   const startTimer = (duration: number) => {
@@ -175,43 +170,35 @@ function PlayerPageContent() {
   };
 
   const handleSubmitAnswer = async (optIdx: number) => {
-    if (hasAnswered || questionStatus !== 'showing' || !currentQuestion) return;
+    const sess = sessionRef.current;
+    const me = playerRef.current;
+    if (!sess || !me || hasAnswered || questionStatus !== 'showing' || !currentQuestion) return;
+
     setHasAnswered(true);
     setChosenOption(optIdx);
 
-    const timeSpent = ((Date.now() - startTimeRef.current) / 1000).toFixed(2);
-    const correct = currentQuestion.correct_option === optIdx;
+    const timeSpent = parseFloat(((Date.now() - startTimeRef.current) / 1000).toFixed(2));
+    const correct = currentQuestion.correctOption === optIdx;
 
-    const { error } = await supabase.from('player_answers').insert({
-      session_id: session.id,
-      player_id: player.id,
-      question_id: currentQuestion.id,
-      chosen_option: optIdx,
-      is_correct: correct,
-      time_spent: parseFloat(timeSpent)
+    await submitAnswer(sess.id, {
+      playerId: me.id,
+      questionId: currentQuestion.id,
+      chosenOption: optIdx,
+      isCorrect: correct,
+      timeSpent,
     });
-
-    if (error) {
-      console.error(error);
-      setHasAnswered(false);
-      setChosenOption(null);
-    }
   };
 
   const revealAnswer = async () => {
     stopTimer();
-    if (!currentQuestion || !player) return;
-    const { data: answer } = await supabase
-      .from('player_answers')
-      .select('*')
-      .eq('session_id', session.id)
-      .eq('player_id', player.id)
-      .eq('question_id', currentQuestion.id)
-      .single();
+    const sess = sessionRef.current;
+    const me = playerRef.current;
+    if (!sess || !me || !currentQuestion) return;
 
+    const answer = await getPlayerAnswer(sess.id, me.id, currentQuestion.id);
     if (answer) {
-      setIsCorrect(answer.is_correct);
-      if (answer.is_correct) {
+      setIsCorrect(answer.isCorrect);
+      if (answer.isCorrect) {
         confetti({ particleCount: 40, spread: 50, origin: { y: 0.5 } });
       }
     } else {
@@ -219,22 +206,28 @@ function PlayerPageContent() {
     }
   };
 
-  // LIFELINES (logic unchanged)
+  // LIFELINES
   const handleUse5050 = async () => {
-    if (!currentQuestion || lifelinesRemaining <= 0 || hasAnswered) return;
-    const wrongOptions = [1, 2, 3, 4].filter(i => i !== currentQuestion.correct_option);
+    const sess = sessionRef.current;
+    const me = playerRef.current;
+    if (!sess || !me || !currentQuestion || lifelinesRemaining <= 0 || hasAnswered) return;
+
+    const wrongOptions = [1, 2, 3, 4].filter(i => i !== currentQuestion.correctOption);
     const toHide = wrongOptions.sort(() => 0.5 - Math.random()).slice(0, 2);
     setHiddenOptions(toHide);
     setLifelinesRemaining(prev => prev - 1);
-    await supabase.from('players').update({ lifelines_remaining: lifelinesRemaining - 1 }).eq('id', player.id);
+    await updatePlayer(sess.id, me.id, { lifelinesRemaining: me.lifelinesRemaining - 1 });
   };
 
   const handleUseTimeLifeline = async () => {
-    if (lifelinesTimeRemaining <= 0 || questionStatus !== 'showing') return;
-    const newTimerVal = session.timer_duration + 20;
-    await supabase.from('sessions').update({ timer_duration: newTimerVal }).eq('id', session.id);
+    const sess = sessionRef.current;
+    const me = playerRef.current;
+    if (!sess || !me || lifelinesTimeRemaining <= 0 || questionStatus !== 'showing') return;
+
+    const newTimerVal = sess.timerDuration + 20;
+    await updateSession(sess.id, { timerDuration: newTimerVal });
     setLifelinesTimeRemaining(prev => prev - 1);
-    await supabase.from('players').update({ lifelines_time_remaining: lifelinesTimeRemaining - 1 }).eq('id', player.id);
+    await updatePlayer(sess.id, me.id, { lifelinesTimeRemaining: me.lifelinesTimeRemaining - 1 });
     setSecondsLeft(prev => prev + 20);
   };
 
@@ -386,7 +379,7 @@ function PlayerPageContent() {
                             'h-full rounded-full transition-all duration-1000 ease-linear',
                             secondsLeft <= 5 ? 'bg-danger' : 'bg-gradient-to-l from-neon-deep to-neon'
                           )}
-                          style={{ width: `${(secondsLeft / session.timer_duration) * 100}%` }}
+                          style={{ width: `${Math.max(0, (secondsLeft / session.timerDuration) * 100)}%` }}
                         />
                       </div>
                     </div>
@@ -400,8 +393,7 @@ function PlayerPageContent() {
                     ) : (
                       <div className="grid grid-cols-2 gap-3">
                         {[1, 2, 3, 4].map((optNum) => {
-                          const optionKey = `option${optNum}`;
-                          const optionVal = currentQuestion[optionKey];
+                          const optionVal = (currentQuestion as any)[`option${optNum}`];
                           if (!optionVal || hiddenOptions.includes(optNum)) return null;
                           return (
                             <button
@@ -455,7 +447,7 @@ function PlayerPageContent() {
           </div>
 
           {/* Scoreboard overlay */}
-          {session.show_scoreboard && (
+          {session.showScoreboard && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-void/80 p-6 backdrop-blur-md">
               <div className="glass-strong w-full max-w-sm space-y-4 rounded-[var(--radius-card)] p-6 text-center shadow-[var(--shadow-neon-strong)]">
                 <Trophy className="anim-float mx-auto h-10 w-10 text-gold" />

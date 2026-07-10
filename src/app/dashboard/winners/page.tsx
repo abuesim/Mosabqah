@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getWinnersArchive, getLeaders } from '@/lib/db';
+import type { Winner, LeaderEntry } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { Trophy, Award, Calendar, Users, Crown } from 'lucide-react';
 import Card, { CardHeader } from '@/components/ui/Card';
@@ -11,17 +12,16 @@ import dynamic from 'next/dynamic';
 const PDFDownloadButton = dynamic(() => import('@/components/PDFDownloadButton'), { ssr: false });
 
 export default function WinnersPage() {
-  const [winners, setWinners] = useState<any[]>([]);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [winners, setWinners] = useState<Winner[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const { data: wData } = await supabase.from('winners_archive').select('*').order('created_at', { ascending: false });
-        if (wData) setWinners(wData);
-        const { data: lData } = await supabase.from('cumulative_leaderboard').select('*').order('total_score', { ascending: false });
-        if (lData) setLeaderboard(lData);
+        const [w, l] = await Promise.all([getWinnersArchive(), getLeaders()]);
+        setWinners(w);
+        setLeaderboard(l);
       } catch (err) {
         console.error(err);
       } finally {
@@ -77,11 +77,11 @@ export default function WinnersPage() {
                       {idx === 0 ? <Crown className="h-3.5 w-3.5" /> : idx + 1}
                     </span>
                     <div>
-                      <p className="text-xs font-bold text-ink">{player.player_name}</p>
-                      <span className="text-[9px] font-medium text-ink-faint">{player.games_played} مسابقات</span>
+                      <p className="text-xs font-bold text-ink">{player.playerName}</p>
+                      <span className="text-[9px] font-medium text-ink-faint">{player.gamesPlayed} مسابقات</span>
                     </div>
                   </div>
-                  <span className="font-display text-xs font-extrabold text-gold">{player.total_score}</span>
+                  <span className="font-display text-xs font-extrabold text-gold">{player.totalScore}</span>
                 </div>
               ))
             )}
@@ -103,22 +103,24 @@ export default function WinnersPage() {
                 {winners.map((archive) => (
                   <div key={archive.id} className="flex flex-col gap-4 p-5 transition-colors hover:bg-white/5 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h4 className="text-sm font-bold text-ink md:text-base">{archive.session_title}</h4>
+                      <h4 className="text-sm font-bold text-ink md:text-base">{archive.sessionTitle}</h4>
                       <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-mute">
                         <span className="flex items-center gap-1">
                           <Users className="h-3.5 w-3.5" />
-                          {archive.total_players} لاعب
+                          {archive.totalPlayers} لاعب
                         </span>
                         <span>•</span>
                         <span>
-                          {new Date(archive.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          {archive.createdAt?.toDate
+                            ? archive.createdAt.toDate().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : '—'}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 self-start rounded-xl border border-gold/25 bg-gold/10 px-4 py-2 text-xs font-extrabold text-gold md:self-auto">
                       <Trophy className="h-4 w-4 text-gold" />
-                      <span>{archive.winner_name}</span>
-                      <span className="font-display text-gold/80">({archive.winner_score})</span>
+                      <span>{archive.winnerName}</span>
+                      <span className="font-display text-gold/80">({archive.winnerScore})</span>
                     </div>
                   </div>
                 ))}

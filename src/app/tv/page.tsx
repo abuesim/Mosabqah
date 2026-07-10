@@ -2,11 +2,16 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import {
+  getSessionByRoomCode, getPlayers, getSessionQuestions,
+  subscribeSession, subscribeSessionPlayers, subscribeAnswerCount,
+} from '@/lib/db';
+import type { Session, Player, Question } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { Users, Trophy, Award, Monitor, EyeOff, Eye, Crown, Radio } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Spinner from '@/components/ui/Spinner';
+import type { Unsubscribe } from 'firebase/firestore';
 
 import { Suspense } from 'react';
 
@@ -14,9 +19,9 @@ function TvPageContent() {
   const searchParams = useSearchParams();
   const roomCode = searchParams.get('code');
 
-  const [session, setSession] = useState<any>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
-  const [players, setPlayers] = useState<any[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [answersCount, setAnswersCount] = useState(0);
 
   const [overlayMode, setOverlayMode] = useState<'normal' | 'chroma' | 'transparent'>('normal');
@@ -27,89 +32,86 @@ function TvPageContent() {
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Refs for use inside subscription callbacks
+  const sessionRef = useRef<Session | null>(null);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
   useEffect(() => {
     if (!roomCode) return;
 
     async function loadRoom() {
-      const { data: sess } = await supabase.from('sessions').select('*').eq('room_code', roomCode).single();
+      if (!roomCode) return;
+      const sess = await getSessionByRoomCode(roomCode);
       if (!sess) return;
       setSession(sess);
 
-      const { data: playerData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('session_id', sess.id)
-        .order('score', { ascending: false });
-      if (playerData) setPlayers(playerData);
+      const playerData = await getPlayers(sess.id);
+      setPlayers(playerData);
 
-      if (sess.current_question_id) {
-        const { data: q } = await supabase.from('questions').select('*').eq('id', sess.current_question_id).single();
-        if (q) setCurrentQuestion(q);
+      if (sess.currentQuestionId) {
+        const qList = await getSessionQuestions([sess.currentQuestionId]);
+        if (qList[0]) setCurrentQuestion(qList[0]);
       }
     }
 
     loadRoom();
 
-    const sessionChannel = supabase
-      .channel(`tv-session-${roomCode}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `room_code=eq.${roomCode}` }, (payload) => {
-        const updatedSess = payload.new;
-        if (updatedSess.current_question_id && updatedSess.current_question_id !== session?.current_question_id) {
+    return () => {
+      stopTimer();
+      if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+    };
+  }, [roomCode]);
+
+  // Subscribe once we have a session id
+  useEffect(() => {
+    if (!session?.id) return;
+
+    const unsubs: Unsubscribe[] = [];
+
+    // 1. Session doc changes
+    unsubs.push(
+      subscribeSession(session.id, async (updatedSess) => {
+        if (!updatedSess) return;
+
+        // New question detected → trigger 5s prep countdown
+        if (
+          updatedSess.currentQuestionId &&
+          updatedSess.currentQuestionId !== sessionRef.current?.currentQuestionId
+        ) {
           triggerPrepCountdown(updatedSess);
         } else {
           setSession(updatedSess);
-          if (updatedSess.question_status === 'showing') {
-            startTimer(updatedSess.timer_duration);
-          } else if (updatedSess.question_status === 'revealed') {
+          if (updatedSess.questionStatus === 'showing') {
+            startTimer(updatedSess.timerDuration);
+          } else if (updatedSess.questionStatus === 'revealed') {
             stopTimer();
           }
         }
       })
-      .subscribe();
+    );
 
-    const playersChannel = supabase
-      .channel(`tv-players-${roomCode}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
-        if (session?.id) {
-          supabase
-            .from('players')
-            .select('*')
-            .eq('session_id', session.id)
-            .order('score', { ascending: false })
-            .then(({ data }) => {
-              if (data) setPlayers(data);
-            });
-        }
+    // 2. Players list
+    unsubs.push(
+      subscribeSessionPlayers(session.id, (newPlayers) => {
+        setPlayers(newPlayers);
       })
-      .subscribe();
+    );
 
-    const answersChannel = supabase
-      .channel(`tv-answers-${roomCode}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'player_answers' }, () => {
-        if (session?.id && session?.current_question_id) {
-          supabase
-            .from('player_answers')
-            .select('*', { count: 'exact', head: true })
-            .eq('session_id', session.id)
-            .eq('question_id', session.current_question_id)
-            .then(({ count }) => {
-              setAnswersCount(count || 0);
-            });
-        }
-      })
-      .subscribe();
+    // 3. Answer count for current question
+    if (session.currentQuestionId) {
+      unsubs.push(
+        subscribeAnswerCount(session.id, session.currentQuestionId, (count) => {
+          setAnswersCount(count);
+        })
+      );
+    }
 
     return () => {
-      supabase.removeChannel(sessionChannel);
-      supabase.removeChannel(playersChannel);
-      supabase.removeChannel(answersChannel);
-      stopTimer();
-      if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+      unsubs.forEach(u => u && u());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, session?.id, session?.current_question_id]);
+  }, [session?.id, session?.currentQuestionId]);
 
-  const triggerPrepCountdown = (updatedSess: any) => {
+  const triggerPrepCountdown = (updatedSess: Session) => {
     stopTimer();
     setPrepCountdown(5);
     if (prepTimerRef.current) clearInterval(prepTimerRef.current);
@@ -121,11 +123,14 @@ function TvPageContent() {
           clearInterval(prepTimerRef.current!);
           prepTimerRef.current = null;
           setPrepCountdown(null);
+          // Apply changes after countdown
           setSession(updatedSess);
-          supabase.from('questions').select('*').eq('id', updatedSess.current_question_id).single().then(({ data }) => {
-            if (data) setCurrentQuestion(data);
-          });
-          startTimer(updatedSess.timer_duration);
+          if (updatedSess.currentQuestionId) {
+            getSessionQuestions([updatedSess.currentQuestionId]).then((list) => {
+              if (list[0]) setCurrentQuestion(list[0]);
+            });
+          }
+          startTimer(updatedSess.timerDuration);
           return null;
         }
         return prev - 1;
@@ -180,7 +185,6 @@ function TvPageContent() {
     );
   }
 
-  // Background per overlay mode
   const bgClass =
     overlayMode === 'chroma' ? 'bg-[#00ff00] text-black' :
     overlayMode === 'transparent' ? 'bg-transparent text-ink' :
@@ -208,7 +212,6 @@ function TvPageContent() {
 
   return (
     <main className={cn('relative min-h-screen flex flex-col justify-between p-6 transition-colors duration-300 md:p-12', bgClass)}>
-      {/* Mesh only in normal mode */}
       {overlayMode === 'normal' && (
         <>
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-mesh opacity-70" />
@@ -246,7 +249,7 @@ function TvPageContent() {
               <Radio className="h-4 w-4 anim-pulse-neon text-danger-bright" />
               <span className="text-xs font-bold uppercase tracking-widest text-neon-bright">بث مباشر</span>
             </div>
-            <h1 className="font-display text-4xl font-black text-gradient md:text-5xl">{session.title}</h1>
+            <h1 className="font-brand text-5xl text-gradient md:text-6xl">{session.title}</h1>
             <p className="text-sm text-ink-mute md:text-lg">تحدّي معلومات لحظي مباشر. انضم إلينا الآن للعب!</p>
           </div>
 
@@ -254,7 +257,7 @@ function TvPageContent() {
             <div className={cn('flex flex-col items-center justify-center space-y-4 rounded-[var(--radius-card)] p-8', panelClass)}>
               <h3 className="text-xs font-bold uppercase tracking-widest text-ink-mute">رمز الدخول</h3>
               <p className="font-display text-6xl font-black tracking-[0.3em] text-neon-bright drop-shadow-[0_0_25px_rgba(168,85,247,0.6)] md:text-7xl">
-                {session.room_code}
+                {session.roomCode}
               </p>
               <p className="text-xs text-ink-mute">اكتب الرمز في صفحة المتسابق للانضمام</p>
             </div>
@@ -279,10 +282,9 @@ function TvPageContent() {
       {/* ACTIVE QUESTION */}
       {session.status === 'active' && currentQuestion && (
         <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-between space-y-8">
-          {/* Question */}
           <div className="space-y-4 pt-4 text-center">
             <h2 className="font-display text-2xl font-extrabold leading-tight text-ink md:text-4xl">
-              {currentQuestion.question_text}
+              {currentQuestion.questionText}
             </h2>
             <div className="flex justify-center gap-3 text-xs font-bold">
               <span className="rounded-full border border-neon/25 bg-neon/10 px-3 py-1 uppercase tracking-wider text-neon-bright">
@@ -297,13 +299,12 @@ function TvPageContent() {
             </div>
           </div>
 
-          {/* Options */}
           <div className="my-auto grid w-full grid-cols-1 gap-5 md:grid-cols-2">
             {['option1', 'option2', 'option3', 'option4'].map((optKey, idx) => {
-              const optVal = currentQuestion[optKey];
+              const optVal = (currentQuestion as any)[optKey];
               if (!optVal) return null;
-              const isCorrect = currentQuestion.correct_option === (idx + 1);
-              const isRevealed = session.question_status === 'revealed';
+              const isCorrect = currentQuestion.correctOption === (idx + 1);
+              const isRevealed = session.questionStatus === 'revealed';
               const labels = ['A', 'B', 'C', 'D'];
 
               return (
@@ -330,8 +331,7 @@ function TvPageContent() {
             })}
           </div>
 
-          {/* Timer bar */}
-          {session.question_status === 'showing' && (
+          {session.questionStatus === 'showing' && (
             <div className="relative space-y-2 pb-2">
               <div className="flex items-center justify-between text-sm font-bold">
                 <span className="text-ink-mute">الوقت المتبقي</span>
@@ -345,7 +345,7 @@ function TvPageContent() {
                     'h-full rounded-full transition-all duration-1000 ease-linear',
                     secondsLeft <= 5 ? 'bg-danger' : 'bg-gradient-to-l from-neon-deep via-neon to-cyan'
                   )}
-                  style={{ width: `${(secondsLeft / session.timer_duration) * 100}%` }}
+                  style={{ width: `${Math.max(0, (secondsLeft / session.timerDuration) * 100)}%` }}
                 />
               </div>
             </div>
@@ -364,7 +364,6 @@ function TvPageContent() {
 
           {players.length > 0 && (
             <div className="flex w-full max-w-2xl items-end justify-center gap-4 pt-12 md:gap-8">
-              {/* 2nd */}
               {players[1] && (
                 <div className="flex w-1/3 flex-col items-center gap-3">
                   <span className="text-xs font-bold" style={{ color: players[1].color }}>{players[1].name}</span>
@@ -375,7 +374,6 @@ function TvPageContent() {
                 </div>
               )}
 
-              {/* 1st */}
               <div className="flex w-1/3 flex-col items-center gap-3">
                 <Crown className="anim-float h-7 w-7 text-gold drop-shadow-[0_0_15px_rgba(251,191,36,0.7)]" />
                 <span className="text-sm font-black text-gold" style={{ color: players[0].color }}>{players[0].name}</span>
@@ -385,7 +383,6 @@ function TvPageContent() {
                 <span className="font-display text-xs font-extrabold text-gold">{players[0].score}</span>
               </div>
 
-              {/* 3rd */}
               {players[2] && (
                 <div className="flex w-1/3 flex-col items-center gap-3">
                   <span className="text-xs font-bold text-amber-600" style={{ color: players[2].color }}>{players[2].name}</span>

@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// ============================================================
+//  Mosabqah — Firestore Security Rules
+//  Mirrors the original Supabase RLS policies:
+//   - Players/answers: public (join game by room code, no account)
+//   - Questions: read by authenticated, modify by admin only
+//   - Sessions: public read, owner manages
+//   - Leaderboard: public read, authenticated write
+//   - Winners archive: public read, presenter insert
+//   - Users (profiles): public read, self write
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the current user an admin?
+    function isAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---------- users/{uid} (profiles) ----------
+    // Public read (navbar shows names), self write only.
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---------- questions/{id} ----------
+    // Authenticated can read (build sessions); only admins modify.
+    match /questions/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ---------- sessions/{id} ----------
+    // Public read (TV + players join by room code with no account).
+    // Owner manages own session. Players/answers subcollections public.
+    match /sessions/{sessionId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // ---------- players (public contestants) ----------
+      match /players/{playerId} {
+        allow read: if true;
+        allow create: if true;
+        // Allow score/streak/lifeline updates from the host or self.
+        // Host context: no easy uid check, so allow updates (the game flow needs it).
+        allow update: if true;
+      }
+
+      // ---------- answers (contestant submissions) ----------
+      match /answers/{answerId} {
+        allow read: if true;
+        allow create: if true;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- winners/{id} (archive) ----------
+    // Public read; any authenticated user (presenter) can insert on game end.
+    match /winners/{id} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- leaderboard/{playerName} (cumulative) ----------
+    // Public read; authenticated write (incremented on game end).
+    match /leaderboard/{playerName} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

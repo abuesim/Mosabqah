@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import {
+  getUserProfile, getSessions, getQuestions, createSession, updateSession,
+  getSessionById, getSessionQuestions, getPlayers, getAnswerCount,
+  getAnswersForQuestion, updatePlayer, archiveWinner, incrementCumulativeScore,
+  subscribeSession, subscribeSessionPlayers, subscribeAnswerCount,
+} from '@/lib/db';
+import type { Session, Question, Player, UserProfile } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import { Layers, Plus, Play, CheckSquare, Square, ArrowRight, Users, Radio, Flame } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -12,6 +20,7 @@ import StatusDot from '@/components/ui/StatusDot';
 import DifficultyBadge from '@/components/ui/DifficultyBadge';
 import CategoryIcon from '@/components/ui/CategoryIcon';
 import Spinner from '@/components/ui/Spinner';
+import type { Unsubscribe } from 'firebase/firestore';
 
 import { Suspense } from 'react';
 
@@ -20,10 +29,10 @@ function SessionsPageContent() {
   const searchParams = useSearchParams();
   const activeSessionId = searchParams.get('id');
 
-  const [profile, setProfile] = useState<any>(null);
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -34,143 +43,117 @@ function SessionsPageContent() {
   const [timerDuration, setTimerDuration] = useState(30);
 
   // Active Session Control State
-  const [activeSession, setActiveSession] = useState<any>(null);
-  const [activeQuestions, setActiveQuestions] = useState<any[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
-  const [players, setPlayers] = useState<any[]>([]);
+  const [activeSession, setActiveSession] = useState<Session | null>(null);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [answersCount, setAnswersCount] = useState(0);
 
+  // Initial load (profile + question bank + own sessions)
   useEffect(() => {
-    async function init() {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: userProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        const userProfile = await getUserProfile(user.uid);
         if (userProfile) setProfile(userProfile);
 
-        const { data: qData } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
-        if (qData) setQuestions(qData);
-
-        await fetchSessions(user.id);
+        const [qData, mySessions] = await Promise.all([
+          getQuestions(),
+          getSessions(user.uid),
+        ]);
+        setQuestions(qData);
+        setSessions(mySessions);
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
-    }
-    init();
+    });
+    return () => unsub();
   }, []);
 
-  // Monitor Active Session parameters and subscribe to changes
+  // Active session loader + realtime subscriptions
   useEffect(() => {
     if (!activeSessionId) {
       setActiveSession(null);
       return;
     }
 
+    let unsubs: Unsubscribe[] = [];
+
     async function loadActiveSession() {
-      const { data: session } = await supabase.from('sessions').select('*').eq('id', activeSessionId).single();
+      if (!activeSessionId) return;
+      const session = await getSessionById(activeSessionId);
       if (!session) return;
       setActiveSession(session);
 
-      const { data: sqData } = await supabase
-        .from('session_questions')
-        .select('question_id')
-        .eq('session_id', activeSessionId);
-      if (sqData && sqData.length > 0) {
-        const qIds = sqData.map(sq => sq.question_id);
-        const { data: qList } = await supabase.from('questions').select('*').in('id', qIds);
-        if (qList) {
-          setActiveQuestions(qList);
-          if (session.current_question_id) {
-            const currentQ = qList.find(q => q.id === session.current_question_id);
-            setCurrentQuestion(currentQ || null);
-          }
+      // Load session's questions
+      if (session.questionIds?.length) {
+        const qList = await getSessionQuestions(session.questionIds);
+        setActiveQuestions(qList);
+        if (session.currentQuestionId) {
+          setCurrentQuestion(qList.find(q => q.id === session.currentQuestionId) || null);
         }
       }
 
-      const { data: playerData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('session_id', activeSessionId)
-        .order('score', { ascending: false });
-      if (playerData) setPlayers(playerData);
+      // Load players
+      const playerData = await getPlayers(activeSessionId);
+      setPlayers(playerData);
 
-      if (session.current_question_id) {
-        const { count } = await supabase
-          .from('player_answers')
-          .select('*', { count: 'exact', head: true })
-          .eq('session_id', activeSessionId)
-          .eq('question_id', session.current_question_id);
-        setAnswersCount(count || 0);
+      // Load answer count for current question
+      if (session.currentQuestionId) {
+        const count = await getAnswerCount(activeSessionId, session.currentQuestionId);
+        setAnswersCount(count);
       }
     }
 
     loadActiveSession();
 
-    const playersSubscription = supabase
-      .channel('players-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `session_id=eq.${activeSessionId}` }, () => {
-        supabase
-          .from('players')
-          .select('*')
-          .eq('session_id', activeSessionId)
-          .order('score', { ascending: false })
-          .then(({ data }) => {
-            if (data) setPlayers(data);
+    // 1. Subscribe to session doc changes (replaces session-info-changes)
+    unsubs.push(
+      subscribeSession(activeSessionId, async (sess) => {
+        if (!sess) return;
+        setActiveSession(sess);
+        if (sess.currentQuestionId) {
+          // fetch the current question doc if we don't have it locally
+          setCurrentQuestion(prev => {
+            if (prev?.id === sess.currentQuestionId) return prev;
+            // lazy load
+            getSessionQuestions([sess.currentQuestionId!]).then(list => {
+              if (list[0]) setCurrentQuestion(list[0]);
+            });
+            return prev;
           });
-      })
-      .subscribe();
-
-    const answersSubscription = supabase
-      .channel('answers-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'player_answers', filter: `session_id=eq.${activeSessionId}` }, () => {
-        if (activeSession?.current_question_id) {
-          supabase
-            .from('player_answers')
-            .select('*', { count: 'exact', head: true })
-            .eq('session_id', activeSessionId)
-            .eq('question_id', activeSession.current_question_id)
-            .then(({ count }) => {
-              setAnswersCount(count || 0);
-            });
+        } else {
+          setCurrentQuestion(null);
         }
       })
-      .subscribe();
+    );
 
-    const sessionSubscription = supabase
-      .channel('session-info-changes')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${activeSessionId}` }, (payload) => {
-        setActiveSession(payload.new);
-        if (payload.new.current_question_id) {
-          supabase
-            .from('questions')
-            .select('*')
-            .eq('id', payload.new.current_question_id)
-            .single()
-            .then(({ data }) => {
-              setCurrentQuestion(data || null);
-            });
-        }
+    // 2. Subscribe to players list (replaces players-changes)
+    unsubs.push(
+      subscribeSessionPlayers(activeSessionId, (newPlayers) => {
+        setPlayers(newPlayers);
       })
-      .subscribe();
+    );
+
+    // 3. Subscribe to answer count for current question (replaces answers-changes)
+    // We use a getter for currentQuestionId so the subscription stays fresh.
+    const currentQidGetter = () => activeSession?.currentQuestionId;
+    const qid = currentQidGetter();
+    if (qid) {
+      unsubs.push(
+        subscribeAnswerCount(activeSessionId, qid, (count) => {
+          setAnswersCount(count);
+        })
+      );
+    }
 
     return () => {
-      supabase.removeChannel(playersSubscription);
-      supabase.removeChannel(answersSubscription);
-      supabase.removeChannel(sessionSubscription);
+      unsubs.forEach(u => u && u());
     };
-  }, [activeSessionId, activeSession?.current_question_id]);
-
-  const fetchSessions = async (userId: string) => {
-    const { data } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false });
-    if (data) setSessions(data);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId, activeSession?.currentQuestionId]);
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,84 +166,77 @@ function SessionsPageContent() {
     }
     try {
       const code = roomCode || Math.floor(1000 + Math.random() * 9000).toString();
-      const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .insert({
-          title,
-          room_code: code,
-          timer_duration: timerDuration,
-          created_by: profile.id,
-          status: 'waiting'
-        })
-        .select()
-        .single();
-      if (sessionError) throw sessionError;
-      const sessionQuestions = selectedQuestionIds.map(qid => ({ session_id: session.id, question_id: qid }));
-      const { error: sqError } = await supabase.from('session_questions').insert(sessionQuestions);
-      if (sqError) throw sqError;
+      await createSession({
+        title,
+        roomCode: code,
+        timerDuration,
+        createdBy: profile.uid,
+        status: 'waiting',
+        currentQuestionId: null,
+        questionStatus: 'idle',
+        showScoreboard: false,
+        questionIds: selectedQuestionIds,
+      });
       setSuccess('تم إنشاء الجلسة بنجاح!');
       setTitle('');
       setRoomCode('');
       setSelectedQuestionIds([]);
-      await fetchSessions(profile.id);
+      const fresh = await getSessions(profile.uid);
+      setSessions(fresh);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء إنشاء الجلسة.');
     }
   };
 
-  const handleQuestionToggle = (qid: number) => {
-    if (selectedQuestionIds.includes(qid)) {
-      setSelectedQuestionIds(selectedQuestionIds.filter(id => id !== qid));
-    } else {
-      setSelectedQuestionIds([...selectedQuestionIds, qid]);
-    }
+  const handleQuestionToggle = (qid: string) => {
+    setSelectedQuestionIds(prev =>
+      prev.includes(qid) ? prev.filter(id => id !== qid) : [...prev, qid]
+    );
   };
 
-  // GAME CONSOLE ACTION HANDLERS (logic unchanged)
-  const handleShowQuestion = async (qid: number) => {
+  // GAME CONSOLE ACTION HANDLERS
+  const handleShowQuestion = async (qid: string) => {
     if (!activeSession) return;
     setAnswersCount(0);
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ current_question_id: qid, question_status: 'showing', status: 'active' })
-      .eq('id', activeSession.id);
-    if (updateError) console.error(updateError);
+    await updateSession(activeSession.id, {
+      currentQuestionId: qid,
+      questionStatus: 'showing',
+      status: 'active',
+    });
   };
 
   const handleRevealAnswer = async () => {
     if (!activeSession || !currentQuestion) return;
-    const { data: submissions } = await supabase
-      .from('player_answers')
-      .select('*')
-      .eq('session_id', activeSession.id)
-      .eq('question_id', currentQuestion.id);
+    const submissions = await getAnswersForQuestion(activeSession.id, currentQuestion.id);
 
-    if (submissions && submissions.length > 0) {
-      const updates = submissions.map(sub => {
-        if (sub.is_correct) {
-          const timePercent = Math.max(0, 1 - (parseFloat(sub.time_spent) / activeSession.timer_duration));
+    if (submissions.length > 0) {
+      await Promise.all(submissions.map(sub => {
+        if (sub.isCorrect) {
+          const timePercent = Math.max(0, 1 - (sub.timeSpent / activeSession.timerDuration));
           const bonus = Math.round(timePercent * 50);
           const scoreAdded = 100 + bonus;
-          const player = players.find(p => p.id === sub.player_id);
+          const player = players.find(p => p.id === sub.playerId);
           const currentScore = player ? player.score : 0;
           const currentStreak = player ? player.streak : 0;
-          return supabase.from('players').update({ score: currentScore + scoreAdded, streak: currentStreak + 1 }).eq('id', sub.player_id);
+          return updatePlayer(activeSession.id, sub.playerId, {
+            score: currentScore + scoreAdded,
+            streak: currentStreak + 1,
+          });
         } else {
-          return supabase.from('players').update({ streak: 0 }).eq('id', sub.player_id);
+          return updatePlayer(activeSession.id, sub.playerId, { streak: 0 });
         }
-      });
-      await Promise.all(updates);
+      }));
     }
-    await supabase.from('sessions').update({ question_status: 'revealed' }).eq('id', activeSession.id);
+    await updateSession(activeSession.id, { questionStatus: 'revealed' });
   };
 
   const handleToggleScoreboard = async () => {
     if (!activeSession) return;
-    const newState = !activeSession.show_scoreboard;
-    await supabase.from('sessions').update({ show_scoreboard: newState }).eq('id', activeSession.id);
+    const newState = !activeSession.showScoreboard;
+    await updateSession(activeSession.id, { showScoreboard: newState });
     if (newState) {
       setTimeout(async () => {
-        await supabase.from('sessions').update({ show_scoreboard: false }).eq('id', activeSession.id);
+        await updateSession(activeSession.id, { showScoreboard: false });
       }, 8000);
     }
   };
@@ -268,21 +244,24 @@ function SessionsPageContent() {
   const handleEndGame = async () => {
     if (!activeSession) return;
     if (!confirm('هل تريد إنهاء هذه المسابقة نهائياً وتتويج الفائزين؟')) return;
+
     if (players.length > 0) {
       const winner = players[0];
-      await supabase.from('winners_archive').insert({
-        session_id: activeSession.id,
-        session_title: activeSession.title,
-        winner_name: winner.name,
-        winner_score: winner.score,
-        total_players: players.length
+      await archiveWinner({
+        sessionId: activeSession.id,
+        sessionTitle: activeSession.title,
+        winnerName: winner.name,
+        winnerScore: winner.score,
+        totalPlayers: players.length,
       });
-      const cumulativeUpdates = players.map(p => {
-        return supabase.rpc('increment_cumulative_score', { p_name: p.name, p_score: p.score });
-      });
-      await Promise.all(cumulativeUpdates);
+      await Promise.all(players.map(p => incrementCumulativeScore(p.name, p.score)));
     }
-    await supabase.from('sessions').update({ status: 'finished', current_question_id: null, question_status: 'idle' }).eq('id', activeSession.id);
+
+    await updateSession(activeSession.id, {
+      status: 'finished',
+      currentQuestionId: null,
+      questionStatus: 'idle',
+    });
     router.push('/dashboard/sessions');
   };
 
@@ -317,7 +296,7 @@ function SessionsPageContent() {
               </h2>
               <p className="mt-1 text-xs text-ink-mute">
                 رمز الغرفة:{' '}
-                <span className="font-display font-bold tracking-widest text-neon-bright">{activeSession.room_code}</span>
+                <span className="font-display font-bold tracking-widest text-neon-bright">{activeSession.roomCode}</span>
               </p>
             </div>
           </div>
@@ -332,13 +311,13 @@ function SessionsPageContent() {
 
               {currentQuestion ? (
                 <div className="mt-5 space-y-4">
-                  <h4 className="text-lg font-bold text-ink md:text-xl">{currentQuestion.question_text}</h4>
+                  <h4 className="text-lg font-bold text-ink md:text-xl">{currentQuestion.questionText}</h4>
 
                   <div className="grid grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map((n) => {
-                      const opt = currentQuestion[`option${n}`];
+                      const opt = (currentQuestion as any)[`option${n}`];
                       if (!opt) return null;
-                      const isCorrect = currentQuestion.correct_option === n;
+                      const isCorrect = currentQuestion.correctOption === n;
                       return (
                         <div
                           key={n}
@@ -359,8 +338,8 @@ function SessionsPageContent() {
                     <div className="text-xs text-ink-mute">
                       الحالة:{' '}
                       <span className="font-bold text-ink-soft">
-                        {activeSession.question_status === 'showing' ? 'معروض للجميع' :
-                         activeSession.question_status === 'revealed' ? 'تم الكشف' : 'انتظار'}
+                        {activeSession.questionStatus === 'showing' ? 'معروض للجميع' :
+                         activeSession.questionStatus === 'revealed' ? 'تم الكشف' : 'انتظار'}
                       </span>
                       <span className="mx-2">•</span>
                       الإجابات:{' '}
@@ -370,15 +349,15 @@ function SessionsPageContent() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {activeSession.question_status === 'showing' && (
+                      {activeSession.questionStatus === 'showing' && (
                         <Button variant="success" size="sm" onClick={handleRevealAnswer}>كشف الإجابة</Button>
                       )}
                       <Button
-                        variant={activeSession.show_scoreboard ? 'primary' : 'ghost'}
+                        variant={activeSession.showScoreboard ? 'primary' : 'ghost'}
                         size="sm"
                         onClick={handleToggleScoreboard}
                       >
-                        {activeSession.show_scoreboard ? 'إخفاء الترتيب' : 'عرض الترتيب'}
+                        {activeSession.showScoreboard ? 'إخفاء الترتيب' : 'عرض الترتيب'}
                       </Button>
                     </div>
                   </div>
@@ -398,14 +377,14 @@ function SessionsPageContent() {
               </h3>
               <div className="glass divide-y divide-line overflow-hidden rounded-[var(--radius-card)]">
                 {activeQuestions.map((q) => {
-                  const isCurrent = activeSession.current_question_id === q.id;
+                  const isCurrent = activeSession.currentQuestionId === q.id;
                   return (
                     <div
                       key={q.id}
                       className={cn('flex items-center justify-between gap-3 p-4 transition-colors', isCurrent ? 'bg-neon/5' : 'hover:bg-white/5')}
                     >
                       <div className="min-w-0">
-                        <h4 className="truncate text-sm font-bold text-ink-soft">{q.question_text}</h4>
+                        <h4 className="truncate text-sm font-bold text-ink-soft">{q.questionText}</h4>
                         <div className="mt-1.5 flex items-center gap-3">
                           <DifficultyBadge difficulty={q.difficulty} />
                           <CategoryIcon category={q.category} />
@@ -413,7 +392,7 @@ function SessionsPageContent() {
                       </div>
                       <button
                         onClick={() => handleShowQuestion(q.id)}
-                        disabled={isCurrent && activeSession.question_status === 'showing'}
+                        disabled={isCurrent && activeSession.questionStatus === 'showing'}
                         className={cn(
                           'shrink-0 cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-bold transition-all',
                           isCurrent
@@ -530,7 +509,7 @@ function SessionsPageContent() {
                         onClick={() => handleQuestionToggle(q.id)}
                         className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg p-2.5 text-right text-xs transition-colors hover:bg-white/5"
                       >
-                        <span className="line-clamp-1 flex-1 text-ink-soft">{q.question_text}</span>
+                        <span className="line-clamp-1 flex-1 text-ink-soft">{q.questionText}</span>
                         {isSelected
                           ? <CheckSquare className="h-4 w-4 shrink-0 text-neon-bright" />
                           : <Square className="h-4 w-4 shrink-0 text-ink-faint" />}
@@ -559,7 +538,7 @@ function SessionsPageContent() {
                       <h4 className="truncate text-sm font-bold text-ink md:text-base">{session.title}</h4>
                       <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-mute">
                         <span className="rounded-md border border-line bg-void/60 px-2 py-0.5 font-display tracking-wider text-neon-bright">
-                          {session.room_code}
+                          {session.roomCode}
                         </span>
                         <StatusDot status={session.status} pulse={session.status === 'active'} />
                       </div>

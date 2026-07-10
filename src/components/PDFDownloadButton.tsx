@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
+import type { Winner, LeaderEntry } from '@/lib/db';
 
 // Register Cairo Arabic Font from Google Fonts CDN to ensure Arabic text renders correctly in the PDF
 Font.register({
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function WinnersPDFDocument({ winners, leaderboard }: { winners: any[]; leaderboard: any[] }) {
+function WinnersPDFDocument({ winners, leaderboard }: { winners: Winner[]; leaderboard: LeaderEntry[] }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -96,9 +97,9 @@ function WinnersPDFDocument({ winners, leaderboard }: { winners: any[]; leaderbo
           {leaderboard.slice(0, 10).map((player, idx) => (
             <View key={player.id} style={styles.tableRow}>
               <Text style={styles.col}>{idx + 1}</Text>
-              <Text style={[styles.colWide, styles.boldText]}>{player.player_name}</Text>
-              <Text style={styles.col}>{player.games_played}</Text>
-              <Text style={[styles.col, styles.boldText]}>{player.total_score}</Text>
+              <Text style={[styles.colWide, styles.boldText]}>{player.playerName}</Text>
+              <Text style={styles.col}>{player.gamesPlayed}</Text>
+              <Text style={[styles.col, styles.boldText]}>{player.totalScore}</Text>
             </View>
           ))}
         </View>
@@ -113,10 +114,10 @@ function WinnersPDFDocument({ winners, leaderboard }: { winners: any[]; leaderbo
           </View>
           {winners.slice(0, 10).map((w) => (
             <View key={w.id} style={styles.tableRow}>
-              <Text style={[styles.colWide, styles.mutedText]}>{w.session_title}</Text>
-              <Text style={[styles.col, styles.boldText]}>{w.winner_name}</Text>
-              <Text style={styles.col}>{w.winner_score}</Text>
-              <Text style={styles.col}>{w.total_players}</Text>
+              <Text style={[styles.colWide, styles.mutedText]}>{w.sessionTitle}</Text>
+              <Text style={[styles.col, styles.boldText]}>{w.winnerName}</Text>
+              <Text style={styles.col}>{w.winnerScore}</Text>
+              <Text style={styles.col}>{w.totalPlayers}</Text>
             </View>
           ))}
         </View>
@@ -125,7 +126,7 @@ function WinnersPDFDocument({ winners, leaderboard }: { winners: any[]; leaderbo
   );
 }
 
-export default function PDFDownloadButton({ winners, leaderboard }: { winners: any[]; leaderboard: any[] }) {
+export default function PDFDownloadButton({ winners, leaderboard }: { winners: Winner[]; leaderboard: LeaderEntry[] }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

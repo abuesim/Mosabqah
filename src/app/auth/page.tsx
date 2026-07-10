@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { signUp, signIn } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import Background from '@/components/ui/Background';
 import Button from '@/components/ui/Button';
@@ -10,39 +10,29 @@ import { Field, Input } from '@/components/ui/Input';
 import { KeyRound, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 'lucide-react';
 
 /**
- * Username-based auth.
+ * Username-based auth (Firebase Email/Password).
  *
- * Supabase Auth requires an email internally, so we synthesize a stable internal
- * address from the chosen username:  "<username>@mosabqah.local". This keeps the
- * signup / signin UI username-only (nicer for family/friends use) while leaving
- * the full Supabase Auth + Realtime stack untouched.
- *
- * Requirement: "Confirm email" must be OFF in Supabase → Auth → Providers → Email,
- * because these .local addresses are not deliverable.
- */
-const toInternalEmail = (username: string) =>
-  `${username.trim().toLowerCase().replace(/\s+/g, '')}@mosabqah.local`;
-
-/**
- * Map raw Supabase auth errors to clear Arabic guidance.
- * Handles the most common pain points: rate limits, duplicates, bad creds.
+ * Firebase doesn't require email deliverability or confirmation, so no
+ * verification emails are ever sent and there are no rate-limit issues.
+ * Internally we synthesize "<username>@mosabqah.local" because Firebase
+ * Auth needs an email-format string; the user only ever sees username.
  */
 function mapAuthError(raw: string): string {
   const msg = raw.toLowerCase();
-  if (msg.includes('rate limit')) {
-    return 'تجاوزت الحد المسموح من المحاولات. انتظر ساعة ثم حاول، أو عطّل "Confirm email" في إعدادات Supabase.';
-  }
-  if (msg.includes('already') || msg.includes('registered') || msg.includes('user already')) {
+  if (msg.includes('email-already-in-use') || msg.includes('already in use')) {
     return 'اسم المستخدم محجوز مسبقاً. اختر اسماً آخر.';
   }
-  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+  if (msg.includes('invalid-credential') || msg.includes('wrong-password') || msg.includes('user-not-found') || msg.includes('invalid-login')) {
     return 'اسم المستخدم أو كلمة المرور غير صحيحة.';
   }
-  if (msg.includes('password') && msg.includes('weak')) {
+  if (msg.includes('weak-password') || msg.includes('password should be at least')) {
     return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
   }
-  if (msg.includes('email not confirmed')) {
-    return 'يجب تأكيد البريد. عطّل "Confirm email" في Supabase ← Authentication ← Providers ← Email.';
+  if (msg.includes('too-many-requests') || msg.includes('rate')) {
+    return 'محاولات كثيرة فاشلة. انتظر دقيقة ثم حاول مرة أخرى.';
+  }
+  if (msg.includes('network') || msg.includes('fetch')) {
+    return 'تعذّر الاتصال بالخادم. تحقق من الإنترنت وحاول.';
   }
   return raw;
 }
@@ -69,45 +59,14 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      const email = toInternalEmail(cleanUsername);
-
       if (isSignUp) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              username: cleanUsername,
-              role,
-            },
-          },
-        });
-
-        if (signUpError) {
-          throw new Error(mapAuthError(signUpError.message));
-        }
-
-        // If Supabase still has email confirmation ON, no session comes back.
-        // We treat that as a setup issue and instruct the user clearly.
-        if (!signUpData.session) {
-          throw new Error(
-            'تم إنشاء الحساب، لكن يجب تأكيد البريد. ' +
-            'عطّل خيار "Confirm email" في Supabase ← Authentication ← Providers ← Email.'
-          );
-        }
-
-        router.push('/dashboard');
+        await signUp(cleanUsername, password, role);
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) throw new Error(mapAuthError(signInError.message));
-        router.push('/dashboard');
+        await signIn(cleanUsername, password);
       }
+      router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'حدث خطأ غير متوقع');
+      setError(mapAuthError(err?.message || String(err)));
     } finally {
       setLoading(false);
     }
@@ -129,7 +88,6 @@ export default function AuthPage() {
 
         {/* Card */}
         <div className="glass-strong rounded-[var(--radius-card)] p-7 shadow-[var(--shadow-neon)]">
-          {/* Error */}
           {error && (
             <div className="anim-shake mb-5 rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-center text-sm text-danger-bright">
               {error}
@@ -187,7 +145,6 @@ export default function AuthPage() {
             </Button>
           </form>
 
-          {/* Toggle */}
           <div className="mt-6 border-t border-line pt-5 text-center text-sm text-ink-mute">
             {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب بعد؟'}{' '}
             <button
@@ -204,7 +161,6 @@ export default function AuthPage() {
           </div>
         </div>
 
-        {/* Back home */}
         <button
           onClick={() => router.push('/')}
           className="mx-auto mt-5 flex cursor-pointer items-center gap-1.5 text-xs text-ink-faint transition-colors hover:text-ink-mute"

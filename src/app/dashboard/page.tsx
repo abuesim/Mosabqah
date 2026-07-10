@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { getUserProfile, getCounts, getSessions } from '@/lib/db';
+import type { Session } from '@/lib/db';
 import { BookOpen, Layers, Trophy, ArrowLeft, Play, Plus, Mic, Sparkles } from 'lucide-react';
 import StatCard from '@/components/ui/StatCard';
 import StatusDot from '@/components/ui/StatusDot';
@@ -11,45 +14,29 @@ import Spinner from '@/components/ui/Spinner';
 export default function DashboardPage() {
   const [profile, setProfile] = useState<{ id: string; username: string; role: string } | null>(null);
   const [stats, setStats] = useState({ questionsCount: 0, sessionsCount: 0, winnersCount: 0 });
-  const [activeSessions, setActiveSessions] = useState<any[]>([]);
+  const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        const userProfile = await getUserProfile(user.uid);
+        if (userProfile) setProfile({ id: userProfile.uid, username: userProfile.username, role: userProfile.role });
 
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('id, username, role')
-          .eq('id', user.id)
-          .single();
-        if (userProfile) setProfile(userProfile);
-
-        const { count: questionsCount } = await supabase.from('questions').select('*', { count: 'exact', head: true });
-        const { count: sessionsCount } = await supabase.from('sessions').select('*', { count: 'exact', head: true });
-        const { count: winnersCount } = await supabase.from('winners_archive').select('*', { count: 'exact', head: true });
-
-        setStats({
-          questionsCount: questionsCount || 0,
-          sessionsCount: sessionsCount || 0,
-          winnersCount: winnersCount || 0,
-        });
-
-        const { data: sessions } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('created_by', user.id)
-          .order('created_at', { ascending: false });
-        if (sessions) setActiveSessions(sessions);
+        const [counts, sessions] = await Promise.all([
+          getCounts(),
+          getSessions(user.uid),
+        ]);
+        setStats(counts);
+        setActiveSessions(sessions);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
         setLoading(false);
       }
-    }
-    fetchData();
+    });
+    return () => unsub();
   }, []);
 
   if (loading) {
@@ -113,7 +100,7 @@ export default function DashboardPage() {
                       <h4 className="truncate text-sm font-bold text-ink md:text-base">{session.title}</h4>
                       <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-mute">
                         <span className="rounded-md border border-line bg-void/60 px-2 py-0.5 font-display tracking-wider text-neon-bright">
-                          {session.room_code}
+                          {session.roomCode}
                         </span>
                         <StatusDot status={session.status} pulse={session.status === 'active'} />
                       </div>

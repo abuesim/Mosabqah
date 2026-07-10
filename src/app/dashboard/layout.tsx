@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import Navbar from '@/components/Navbar';
 import Background from '@/components/ui/Background';
 import Spinner from '@/components/ui/Spinner';
@@ -16,15 +17,16 @@ export default function DashboardLayout({
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-      } else {
+    // onAuthStateChanged is the idiomatic Firebase way to watch login state.
+    // It fires immediately with the cached user (if any) and on every change.
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
         setAuthenticated(true);
+      } else {
+        router.push('/auth');
       }
-    }
-    checkAuth();
+    });
+    return () => unsub();
   }, [router]);
 
   if (!authenticated) {

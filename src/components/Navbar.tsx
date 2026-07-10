@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { getUserProfile, signOutUser } from '@/lib/db';
 import { cn } from '@/lib/utils';
 import {
   LogOut,
@@ -24,20 +26,19 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         router.push('/auth');
         return;
       }
-      const { data } = await supabase.from('profiles').select('username, role').eq('id', user.id).single();
-      if (data) setProfile(data);
-    }
-    fetchProfile();
+      const data = await getUserProfile(user.uid);
+      if (data) setProfile({ username: data.username, role: data.role });
+    });
+    return () => unsub();
   }, [router]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOutUser();
     router.push('/auth');
   };
 
@@ -114,7 +115,6 @@ export default function Navbar() {
             <LogOut className="h-4 w-4" />
           </button>
 
-          {/* Mobile toggle */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg border border-line bg-white/5 text-ink-soft md:hidden"
@@ -126,7 +126,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div className="border-t border-line bg-void-2/95 px-4 py-3 md:hidden">
           <div className="flex flex-col gap-1">
