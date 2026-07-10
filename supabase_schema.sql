@@ -1,5 +1,6 @@
 -- ==========================================
 -- 🚀 Supabase Schema Migration: Mosabqah SaaS
+-- Idempotent: safe to run multiple times.
 -- ==========================================
 
 -- 1. Enable UUID Extension
@@ -16,10 +17,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Enable RLS on profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Profiles Policies
+-- Profiles Policies (drop first so re-running is safe)
+DROP POLICY IF EXISTS "Allow public read access to profiles" ON public.profiles;
 CREATE POLICY "Allow public read access to profiles" ON public.profiles
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow users to update their own profile" ON public.profiles;
 CREATE POLICY "Allow users to update their own profile" ON public.profiles
     FOR UPDATE USING (auth.uid() = id);
 
@@ -37,7 +40,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE TRIGGER on_auth_user_created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
@@ -62,9 +66,11 @@ CREATE TABLE IF NOT EXISTS public.questions (
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 
 -- Questions Policies
+DROP POLICY IF EXISTS "Allow authenticated users to read questions" ON public.questions;
 CREATE POLICY "Allow authenticated users to read questions" ON public.questions
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Allow admins to modify questions" ON public.questions;
 CREATE POLICY "Allow admins to modify questions" ON public.questions
     FOR ALL USING (
         EXISTS (
@@ -92,9 +98,11 @@ CREATE TABLE IF NOT EXISTS public.sessions (
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 
 -- Sessions Policies
+DROP POLICY IF EXISTS "Allow public read access to sessions" ON public.sessions;
 CREATE POLICY "Allow public read access to sessions" ON public.sessions
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow presenters to manage their own sessions" ON public.sessions;
 CREATE POLICY "Allow presenters to manage their own sessions" ON public.sessions
     FOR ALL USING (auth.uid() = created_by);
 
@@ -110,9 +118,11 @@ CREATE TABLE IF NOT EXISTS public.session_questions (
 ALTER TABLE public.session_questions ENABLE ROW LEVEL SECURITY;
 
 -- Session Questions Policies
+DROP POLICY IF EXISTS "Allow public read access to session questions" ON public.session_questions;
 CREATE POLICY "Allow public read access to session questions" ON public.session_questions
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow presenters to manage questions for their sessions" ON public.session_questions;
 CREATE POLICY "Allow presenters to manage questions for their sessions" ON public.session_questions
     FOR ALL USING (
         EXISTS (
@@ -141,6 +151,7 @@ CREATE TABLE IF NOT EXISTS public.players (
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
 
 -- Players Policies
+DROP POLICY IF EXISTS "Allow public access to players table" ON public.players;
 CREATE POLICY "Allow public access to players table" ON public.players
     FOR ALL USING (true);
 
@@ -162,6 +173,7 @@ CREATE TABLE IF NOT EXISTS public.player_answers (
 ALTER TABLE public.player_answers ENABLE ROW LEVEL SECURITY;
 
 -- Player Answers Policies
+DROP POLICY IF EXISTS "Allow public access to insert answers" ON public.player_answers;
 CREATE POLICY "Allow public access to insert answers" ON public.player_answers
     FOR ALL USING (true);
 
@@ -181,9 +193,11 @@ CREATE TABLE IF NOT EXISTS public.winners_archive (
 ALTER TABLE public.winners_archive ENABLE ROW LEVEL SECURITY;
 
 -- Winners Archive Policies
+DROP POLICY IF EXISTS "Allow public read access to winners archive" ON public.winners_archive;
 CREATE POLICY "Allow public read access to winners archive" ON public.winners_archive
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow presenters to insert winners" ON public.winners_archive;
 CREATE POLICY "Allow presenters to insert winners" ON public.winners_archive
     FOR INSERT WITH CHECK (
         EXISTS (
@@ -206,9 +220,11 @@ CREATE TABLE IF NOT EXISTS public.cumulative_leaderboard (
 ALTER TABLE public.cumulative_leaderboard ENABLE ROW LEVEL SECURITY;
 
 -- Cumulative Leaderboard Policies
+DROP POLICY IF EXISTS "Allow public read access to cumulative leaderboard" ON public.cumulative_leaderboard;
 CREATE POLICY "Allow public read access to cumulative leaderboard" ON public.cumulative_leaderboard
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated hosts to modify cumulative leaderboard" ON public.cumulative_leaderboard;
 CREATE POLICY "Allow authenticated hosts to modify cumulative leaderboard" ON public.cumulative_leaderboard
     FOR ALL USING (auth.role() = 'authenticated');
 

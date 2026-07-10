@@ -7,14 +7,27 @@ import { cn } from '@/lib/utils';
 import Background from '@/components/ui/Background';
 import Button from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Input';
-import { KeyRound, Mail, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 'lucide-react';
+import { KeyRound, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 'lucide-react';
+
+/**
+ * Username-based auth.
+ *
+ * Supabase Auth requires an email internally, so we synthesize a stable internal
+ * address from the chosen username:  "<username>@mosabqah.local". This keeps the
+ * signup / signin UI username-only (nicer for family/friends use) while leaving
+ * the full Supabase Auth + Realtime stack untouched.
+ *
+ * Requirement: "Confirm email" must be OFF in Supabase → Auth → Providers → Email,
+ * because these .local addresses are not deliverable.
+ */
+const toInternalEmail = (username: string) =>
+  `${username.trim().toLowerCase().replace(/\s+/g, '')}@mosabqah.local`;
 
 export default function AuthPage() {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'presenter'>('presenter');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,24 +35,41 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      setError('يرجى إدخال اسم المستخدم.');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const email = toInternalEmail(cleanUsername);
+
       if (isSignUp) {
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              username: username || email.split('@')[0],
+              username: cleanUsername,
               role,
             },
           },
         });
 
-        if (signUpError) throw signUpError;
-        alert('تم التسجيل بنجاح! يمكنك الآن تسجيل الدخول.');
-        setIsSignUp(false);
+        if (signUpError) {
+          // Distinguish duplicate-username from generic errors for clearer feedback
+          if (signUpError.message.toLowerCase().includes('already') || signUpError.message.toLowerCase().includes('registered')) {
+            throw new Error('اسم المستخدم محجوز مسبقاً. اختر اسماً آخر.');
+          }
+          throw signUpError;
+        }
+
+        // Email confirmation is expected to be OFF in Supabase settings,
+        // so a session is created right away → go straight to dashboard.
+        router.push('/dashboard');
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -80,29 +110,16 @@ export default function AuthPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <Field label="الاسم المستعار" htmlFor="username">
-                <Input
-                  id="username"
-                  type="text"
-                  required
-                  placeholder="اسم المستخدم"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  icon={<User className="h-5 w-5" />}
-                />
-              </Field>
-            )}
-
-            <Field label="البريد الإلكتروني" htmlFor="email">
+            <Field label="اسم المستخدم" htmlFor="username">
               <Input
-                id="email"
-                type="email"
+                id="username"
+                type="text"
                 required
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                icon={<Mail className="h-5 w-5" />}
+                autoComplete="username"
+                placeholder="اكتب اسم المستخدم"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                icon={<User className="h-5 w-5" />}
               />
             </Field>
 
@@ -111,6 +128,7 @@ export default function AuthPage() {
                 id="password"
                 type="password"
                 required
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
