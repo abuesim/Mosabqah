@@ -131,6 +131,21 @@ export interface LeaderEntry {
 const toInternalEmail = (username: string) =>
   `${username.trim().toLowerCase().replace(/\s+/g, '')}@mosabqah.local`;
 
+async function setDocWithTimeout(docRef: any, data: any, timeoutMs = 6000) {
+  const writePromise = setDoc(docRef, data);
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout_firestore')), timeoutMs)
+  );
+  try {
+    await Promise.race([writePromise, timeoutPromise]);
+  } catch (err: any) {
+    if (err.message === 'timeout_firestore') {
+      throw new Error('تعذر الاتصال بقاعدة بيانات Firestore. يرجى التأكد من تفعيل وإنشاء قاعدة البيانات (Firestore Database) داخل لوحة تحكم Firebase وتغيير القواعد للوضع التجريبي (Test Mode).');
+    }
+    throw err;
+  }
+}
+
 /** Sign up: create auth user + profile doc in users/{uid}. */
 export async function signUp(username: string, password: string, role: Role): Promise<UserProfile> {
   const email = toInternalEmail(username);
@@ -142,7 +157,7 @@ export async function signUp(username: string, password: string, role: Role): Pr
     role,
     createdAt: serverTimestamp(),
   };
-  await setDoc(doc(db, 'users', uid), profile);
+  await setDocWithTimeout(doc(db, 'users', uid), profile);
 
   return { uid, ...profile };
 }
@@ -169,7 +184,7 @@ export async function signInWithGoogle(): Promise<UserProfile> {
       role: 'presenter' as Role,
       createdAt: serverTimestamp(),
     };
-    await setDoc(docRef, profile);
+    await setDocWithTimeout(docRef, profile);
     return { uid, ...profile };
   }
 
