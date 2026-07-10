@@ -58,17 +58,32 @@ export default function AuthPage() {
 
     setLoading(true);
 
+    let resolved = false;
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        setLoading(false);
+        setError('استغرق الاتصال بقاعدة البيانات وقتاً طويلاً. تأكد من تفعيل وإنشاء قاعدة بيانات Firestore في لوحة تحكم Firebase (بوضع التحدي/التجربة أو تفعيل القراءة والكتابة).');
+      }
+    }, 12000);
+
     try {
       if (isSignUp) {
         await signUp(cleanUsername, password, role);
       } else {
         await signIn(cleanUsername, password);
       }
+      resolved = true;
+      clearTimeout(timeoutId);
       router.push('/dashboard');
     } catch (err: any) {
+      resolved = true;
+      clearTimeout(timeoutId);
+      console.error('🔴 Auth Error:', err);
       setError(mapAuthError(err?.message || String(err)));
     } finally {
-      setLoading(false);
+      if (resolved) {
+        setLoading(false);
+      }
     }
   };
 
