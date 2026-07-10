@@ -23,6 +23,30 @@ import { KeyRound, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 
 const toInternalEmail = (username: string) =>
   `${username.trim().toLowerCase().replace(/\s+/g, '')}@mosabqah.local`;
 
+/**
+ * Map raw Supabase auth errors to clear Arabic guidance.
+ * Handles the most common pain points: rate limits, duplicates, bad creds.
+ */
+function mapAuthError(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes('rate limit')) {
+    return 'تجاوزت الحد المسموح من المحاولات. انتظر ساعة ثم حاول، أو عطّل "Confirm email" في إعدادات Supabase.';
+  }
+  if (msg.includes('already') || msg.includes('registered') || msg.includes('user already')) {
+    return 'اسم المستخدم محجوز مسبقاً. اختر اسماً آخر.';
+  }
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+    return 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+  }
+  if (msg.includes('password') && msg.includes('weak')) {
+    return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
+  }
+  if (msg.includes('email not confirmed')) {
+    return 'يجب تأكيد البريد. عطّل "Confirm email" في Supabase ← Authentication ← Providers ← Email.';
+  }
+  return raw;
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -48,7 +72,7 @@ export default function AuthPage() {
       const email = toInternalEmail(cleanUsername);
 
       if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -60,15 +84,18 @@ export default function AuthPage() {
         });
 
         if (signUpError) {
-          // Distinguish duplicate-username from generic errors for clearer feedback
-          if (signUpError.message.toLowerCase().includes('already') || signUpError.message.toLowerCase().includes('registered')) {
-            throw new Error('اسم المستخدم محجوز مسبقاً. اختر اسماً آخر.');
-          }
-          throw signUpError;
+          throw new Error(mapAuthError(signUpError.message));
         }
 
-        // Email confirmation is expected to be OFF in Supabase settings,
-        // so a session is created right away → go straight to dashboard.
+        // If Supabase still has email confirmation ON, no session comes back.
+        // We treat that as a setup issue and instruct the user clearly.
+        if (!signUpData.session) {
+          throw new Error(
+            'تم إنشاء الحساب، لكن يجب تأكيد البريد. ' +
+            'عطّل خيار "Confirm email" في Supabase ← Authentication ← Providers ← Email.'
+          );
+        }
+
         router.push('/dashboard');
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -76,7 +103,7 @@ export default function AuthPage() {
           password,
         });
 
-        if (signInError) throw signInError;
+        if (signInError) throw new Error(mapAuthError(signInError.message));
         router.push('/dashboard');
       }
     } catch (err: any) {
