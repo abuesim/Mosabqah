@@ -94,7 +94,7 @@ export default function AuthPage() {
           <div className="anim-float mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon-strong)]">
             <ShieldCheck className="h-8 w-8 text-white" />
           </div>
-          <h1 className="font-display text-3xl font-extrabold text-gradient">مُسَابَقَة عَصُومِي</h1>
+          <h1 className="font-brand text-4xl text-gradient md:text-5xl">مُسَابَقَة عَصُومِي</h1>
           <p className="mt-2 text-sm text-ink-mute">
             {isSignUp ? 'أنشئ حساباً جديداً للانضمام للمنصة' : 'سجل الدخول لإدارة مسابقاتك وأسئلتك'}
           </p>

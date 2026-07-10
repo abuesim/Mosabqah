@@ -11,6 +11,7 @@
   /* ---------- Fonts ---------- */
   --font-sans: var(--font-tajawal), "Tajawal", system-ui, sans-serif;
   --font-display: var(--font-orbitron), "Orbitron", ui-monospace, monospace;
+  --font-brand: var(--font-alkalami), "Alkalami", "Tajawal", serif;
 
   /* ---------- Void / Surface ramp (deep black → void violet) ---------- */
   --color-void: #070314;
@@ -142,6 +143,13 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* Brand title — Alkalami calligraphic Arabic face */
+  .font-brand {
+    font-family: var(--font-brand);
+    font-weight: 400;
+    letter-spacing: 0;
   }
 
   /* Glass surface used by cards / panels */

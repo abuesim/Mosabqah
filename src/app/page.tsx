@@ -11,7 +11,7 @@ export default function Home() {
           <div className="anim-float mx-auto mb-6 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon-strong)]">
             <Trophy className="h-10 w-10 text-white" />
           </div>
-          <h1 className="font-display text-4xl font-extrabold text-gradient md:text-5xl">
+          <h1 className="font-brand text-5xl text-gradient md:text-6xl">
             مُسَابَقَة عَصُومِي
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm text-ink-mute md:text-base">

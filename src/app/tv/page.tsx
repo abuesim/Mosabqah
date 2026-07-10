@@ -358,7 +358,7 @@ function TvPageContent() {
         <div className="relative mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center space-y-10 text-center">
           <div className="space-y-3">
             <Trophy className="anim-float mx-auto h-16 w-16 text-gold drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]" />
-            <h1 className="font-display text-4xl font-black text-gradient-gold md:text-5xl">تتويج الفائزين</h1>
+            <h1 className="font-brand text-5xl text-gradient-gold md:text-6xl">تتويج الفائزين</h1>
             <p className="text-sm text-ink-mute md:text-lg">تهانينا الحارة لجميع الفائزين الأبطال!</p>
           </div>
 

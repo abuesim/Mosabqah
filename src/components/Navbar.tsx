@@ -56,7 +56,7 @@ export default function Navbar() {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-neon-deep to-neon shadow-[var(--shadow-neon)]">
             <Zap className="h-5 w-5 text-white" fill="currentColor" />
           </span>
-          <span className="hidden text-lg font-extrabold text-gradient sm:inline">
+          <span className="font-brand hidden text-2xl text-gradient sm:inline">
             عَصُومِي
           </span>
         </Link>
