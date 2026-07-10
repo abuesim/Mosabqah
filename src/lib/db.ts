@@ -27,7 +27,7 @@ import {
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot, serverTimestamp,
-  increment, runTransaction,
+  increment, runTransaction, getCountFromServer,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 
@@ -370,15 +370,15 @@ export async function incrementCumulativeScore(playerName: string, scoreAdded: n
 /* ============================================================= */
 
 export async function getCounts(): Promise<{ questionsCount: number; sessionsCount: number; winnersCount: number }> {
-  const [q, s, w] = await Promise.all([
-    getDocs(collection(db, 'questions')),
-    getDocs(collection(db, 'sessions')),
-    getDocs(collection(db, 'winners')),
+  const [qSnap, sSnap, wSnap] = await Promise.all([
+    getCountFromServer(collection(db, 'questions')),
+    getCountFromServer(collection(db, 'sessions')),
+    getCountFromServer(collection(db, 'winners')),
   ]);
   return {
-    questionsCount: q.size,
-    sessionsCount: s.size,
-    winnersCount: w.size,
+    questionsCount: qSnap.data().count,
+    sessionsCount: sSnap.data().count,
+    winnersCount: wSnap.data().count,
   };
 }
 
