@@ -14,24 +14,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: is the current user an admin?
+    // Custom claims can only be written through the server-side Admin SDK.
     function isAdmin() {
-      return request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function isPresenter() {
+      return isAdmin() || (request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'presenter');
     }
 
     // ---------- users/{uid} (profiles) ----------
-    // Public read (navbar shows names), self write only.
+    // New public registrations can choose presenter or contestant roles.
     match /users/{uid} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && (request.resource.data.role == 'presenter' || request.resource.data.role == 'player');
+      allow update, delete: if false;
     }
 
     // ---------- questions/{id} ----------
-    // Authenticated can read (build sessions); only admins modify.
+    // Admin manages the central bank. Presenters may add and maintain only
+    // their own questions, which remain usable in their sessions.
     match /questions/{id} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow create: if isPresenter()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isPresenter() && resource.data.createdBy == request.auth.uid);
     }
 
     // ---------- sessions/{id} ----------
@@ -39,8 +49,13 @@ service cloud.firestore {
     // Owner manages own session. Players/answers subcollections public.
     match /sessions/{sessionId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null
+      allow create: if isPresenter()
         && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isPresenter()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isPresenter()
+        && resource.data.createdBy == request.auth.uid;
 
       // ---------- players (public contestants) ----------
       match /players/{playerId} {
@@ -54,7 +69,8 @@ service cloud.firestore {
       // ---------- answers (contestant submissions) ----------
       match /answers/{answerId} {
         allow read: if true;
-        allow create: if true;
+        // Answers are validated and created by the server-side game endpoint.
+        allow create: if false;
         allow update, delete: if false;
       }
     }
@@ -63,7 +79,7 @@ service cloud.firestore {
     // Public read; any authenticated user (presenter) can insert on game end.
     match /winners/{id} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if isPresenter();
       allow update, delete: if isAdmin();
     }
 
@@ -71,7 +87,7 @@ service cloud.firestore {
     // Public read; authenticated write (incremented on game end).
     match /leaderboard/{playerName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isPresenter();
     }
   }
 }

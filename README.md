@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## إدارة النظام
+
+الحسابات الجديدة تسجّل كمقدمين فقط. لإنشاء أول حساب مدير، انسخ `.env.example` إلى `.env.local`، وأضف حساب خدمة Firebase في `FIREBASE_SERVICE_ACCOUNT` مع `ADMIN_USERNAME` و`ADMIN_PASSWORD`، ثم شغّل:
+
+```bash
+npm run admin:bootstrap
+```
+
+بعد تسجيل الدخول بحساب المدير، ستجد صفحة **إدارة النظام** لإدارة المقدمين والإحصاءات. انشر كذلك محتوى `firestore.rules` في Firebase قبل الإطلاق.
+
 ## Getting Started
 
 First, run the development server:
