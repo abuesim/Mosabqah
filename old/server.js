@@ -444,9 +444,22 @@ io.on('connection', (socket) => {
 
     // Calculate time taken
     const timeSpent = (Date.now() - room.question_start_time) / 1000;
-    if (timeSpent > room.timer_duration) {
-      socket.emit('error-msg', 'انتهى الوقت المحدد للإجابة!');
-      return;
+
+    // Use the actual active timer end time (which accounts for time extensions)
+    // instead of room.timer_duration (which does NOT update on extension)
+    const effectiveEndTime = activeTimerEndTime[roomCode];
+    if (effectiveEndTime) {
+      // Timer is still running — check against the real deadline
+      if (Date.now() > effectiveEndTime) {
+        socket.emit('error-msg', 'انتهى الوقت المحدد للإجابة!');
+        return;
+      }
+    } else {
+      // No active timer — fall back to the original duration
+      if (timeSpent > room.timer_duration) {
+        socket.emit('error-msg', 'انتهى الوقت المحدد للإجابة!');
+        return;
+      }
     }
 
     const isCorrect = (parseInt(chosenOption) === question.correct_option);
@@ -644,6 +657,9 @@ io.on('connection', (socket) => {
       const playersBeforeUpdate = await getPlayers(roomCode);
       const activePlayersBefore = playersBeforeUpdate.filter(p => p.is_active === 1);
 
+      console.log(`📊 REVEAL: Room=${roomCode}, Question=${room.current_question_id}, ActivePlayers=${activePlayersBefore.length}, Answers=${answers.length}`);
+      console.log(`📊 Answer details:`, JSON.stringify(answers.map(a => ({ player_id: a.player_id, is_correct: a.is_correct, time: a.answered_in_seconds }))));
+
       for (const player of activePlayersBefore) {
         const ans = answers.find(a => a.player_id === player.id);
         if (ans && ans.is_correct) {
@@ -659,9 +675,15 @@ io.on('connection', (socket) => {
           await updatePlayerScore(player.id, totalPoints);
           await updatePlayerStreak(player.id, newStreak);
           pointsAwardedMap[player.id] = { points: totalPoints, streak: newStreak, streakBonus };
-        } else if (player.streak) {
-          // Wrong answer or no answer at all — break the streak
-          await updatePlayerStreak(player.id, 0);
+          console.log(`✅ SCORED: player=${player.name}(${player.id}), points=${totalPoints}, speed=${speedBonus}, streak=${newStreak}`);
+        } else if (ans && !ans.is_correct) {
+          // Wrong answer — break the streak
+          if (player.streak) await updatePlayerStreak(player.id, 0);
+          console.log(`❌ WRONG: player=${player.name}(${player.id}), chose=${ans.chosen_option}`);
+        } else {
+          // No answer at all — break the streak
+          if (player.streak) await updatePlayerStreak(player.id, 0);
+          console.log(`⏭️ NO ANSWER: player=${player.name}(${player.id})`);
         }
       }
     }
