@@ -434,7 +434,9 @@ io.on('connection', (socket) => {
     if (!roomCode || !playerId) return;
 
     const room = await getRoom(roomCode);
-    if (!room || room.question_status !== 'showing') {
+    // Accept answers during 'showing' AND 'time_up' — only block after admin reveals.
+    // This prevents race conditions where the server timer fires slightly before the client timer.
+    if (!room || room.question_status === 'revealed' || room.question_status === 'idle') {
       socket.emit('error-msg', 'استقبال الإجابات مغلق حالياً');
       return;
     }
@@ -664,9 +666,9 @@ io.on('connection', (socket) => {
         const ans = answers.find(a => a.player_id === player.id);
         if (ans && ans.is_correct) {
           const timeTaken = ans.answered_in_seconds || 0;
-          const maxTime = room.timer_duration;
-          const speedBonus = Math.max(0, Math.round(((maxTime - timeTaken) / maxTime) * 50));
-          let totalPoints = 100 + speedBonus;
+          // Simple scoring: 100 minus seconds taken (minimum 10 points)
+          const speedBonus = 0; // kept for logging compatibility
+          let totalPoints = Math.max(10, Math.round(100 - timeTaken));
 
           const newStreak = (player.streak || 0) + 1;
           const streakBonus = newStreak >= 3;
@@ -1038,14 +1040,25 @@ io.on('connection', (socket) => {
         totalQuestions
       });
 
-      // Set server-side fallback timer to mark time-up automatically
-      activeTimerEndTime[roomCode] = Date.now() + freshRoom.timer_duration * 1000;
+      // Set server-side fallback timer to mark time-up automatically.
+      // Add a 3-second grace period so players with slight network lag can still submit.
+      const timerMs = freshRoom.timer_duration * 1000;
+      const graceMs = 3000;
+      activeTimerEndTime[roomCode] = Date.now() + timerMs + graceMs;
+      // Emit timer-expired on time, but delay the DB status change by the grace period
       activeTimers[roomCode] = setTimeout(async () => {
-        await updateRoomQuestionStatus(roomCode, 'time_up');
         io.to(roomCode).emit('timer-expired');
+        console.log(`Timer expired for room ${roomCode} (grace period active)`);
+      }, timerMs);
+      // After grace period, actually lock the question status
+      setTimeout(async () => {
+        const currentRoom = await getRoom(roomCode);
+        if (currentRoom && currentRoom.question_status === 'showing') {
+          await updateRoomQuestionStatus(roomCode, 'time_up');
+        }
         delete activeTimerEndTime[roomCode];
-        console.log(`Timer expired for room ${roomCode}`);
-      }, freshRoom.timer_duration * 1000);
+        console.log(`Grace period ended for room ${roomCode}`);
+      }, timerMs + graceMs);
       
     }, prepSeconds * 1000);
   }
