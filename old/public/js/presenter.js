@@ -658,6 +658,21 @@ document.addEventListener('DOMContentLoaded', () => {
     qTimerBar.getBoundingClientRect(); // force reflow
     qTimerBar.style.transition = `width ${secondsLeft}s linear`;
     qTimerBar.style.width = '0%';
+
+    // Recreate countdown interval to keep it ticking on the TV screen!
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+      secondsLeft--;
+      qTimerText.textContent = Math.max(0, secondsLeft);
+      
+      if (secondsLeft <= 5 && secondsLeft > 0) {
+        sounds.playTick();
+      }
+      
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
   });
 
   // Socket: Update Answered count

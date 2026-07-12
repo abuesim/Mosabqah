@@ -610,6 +610,23 @@ document.addEventListener('DOMContentLoaded', () => {
     timerBar.style.transition = `width ${secondsLeft}s linear`;
     timerBar.style.width = '0%';
 
+    // Recreate the countdown interval to make sure it keeps counting down smoothly!
+    clearInterval(countdownInterval);
+    sounds.startHeartbeat(secondsLeft > 5 ? 900 : 450);
+    countdownInterval = setInterval(() => {
+      secondsLeft--;
+      timerText.textContent = secondsLeft;
+
+      if (secondsLeft === 5) {
+        sounds.startHeartbeat(450);
+      }
+
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+        sounds.stopHeartbeat();
+      }
+    }, 1000);
+
     showSuccess(`قام ${playerName} بتمديد الوقت لـ 20 ثانية إضافية! ⏱️`);
   });
 

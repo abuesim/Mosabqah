@@ -152,6 +152,30 @@ export async function initDatabase() {
     console.error('questions image_url migration error:', err.message);
   }
 
+  // Re-create player_answers table if it doesn't match the correct unique key
+  try {
+    const tableCheck = await dbGet("SELECT name FROM sqlite_master WHERE type='table' AND name='player_answers'");
+    if (tableCheck) {
+      const indexes = await dbAll("PRAGMA index_list(player_answers)");
+      let isCorrectUnique = false;
+      for (const idx of indexes) {
+        if (idx.unique === 1) {
+          const cols = await dbAll(`PRAGMA index_info('${idx.name}')`);
+          const colNames = cols.map(c => c.name);
+          if (colNames.includes('player_id') && colNames.includes('question_id') && colNames.includes('room_id')) {
+            isCorrectUnique = true;
+          }
+        }
+      }
+      if (indexes.length > 0 && !isCorrectUnique) {
+        console.log('🛡️ Migrating player_answers: Dropping old table with incorrect unique constraint...');
+        await dbRun('DROP TABLE player_answers');
+      }
+    }
+  } catch (err) {
+    console.error('player_answers unique index migration error:', err.message);
+  }
+
   await dbRun(`
     CREATE TABLE IF NOT EXISTS player_answers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
