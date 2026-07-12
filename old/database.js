@@ -152,28 +152,15 @@ export async function initDatabase() {
     console.error('questions image_url migration error:', err.message);
   }
 
-  // Re-create player_answers table if it doesn't match the correct unique key
+  // FORCE re-create player_answers with the correct UNIQUE constraint.
+  // The old table may have had UNIQUE(room_id, question_id) without player_id,
+  // which caused only the first player's answer to be accepted per question.
+  // This table only holds per-game transient data, so dropping is safe.
   try {
-    const tableCheck = await dbGet("SELECT name FROM sqlite_master WHERE type='table' AND name='player_answers'");
-    if (tableCheck) {
-      const indexes = await dbAll("PRAGMA index_list(player_answers)");
-      let isCorrectUnique = false;
-      for (const idx of indexes) {
-        if (idx.unique === 1) {
-          const cols = await dbAll(`PRAGMA index_info('${idx.name}')`);
-          const colNames = cols.map(c => c.name);
-          if (colNames.includes('player_id') && colNames.includes('question_id') && colNames.includes('room_id')) {
-            isCorrectUnique = true;
-          }
-        }
-      }
-      if (indexes.length > 0 && !isCorrectUnique) {
-        console.log('🛡️ Migrating player_answers: Dropping old table with incorrect unique constraint...');
-        await dbRun('DROP TABLE player_answers');
-      }
-    }
+    await dbRun('DROP TABLE IF EXISTS player_answers');
+    console.log('🛡️ Dropped old player_answers table to fix UNIQUE constraint.');
   } catch (err) {
-    console.error('player_answers unique index migration error:', err.message);
+    console.error('Could not drop player_answers:', err.message);
   }
 
   await dbRun(`
@@ -489,15 +476,25 @@ export async function addQuestion(questionText, opt1, opt2, opt3, opt4, correctO
 
 export async function submitAnswer(roomId, playerId, questionId, chosenOption, isCorrect, answeredInSeconds) {
   try {
+    // Defensive check: has this player already answered this question?
+    const existing = await dbGet(
+      'SELECT id FROM player_answers WHERE room_id = ? AND player_id = ? AND question_id = ?',
+      [roomId, playerId, questionId]
+    );
+    if (existing) {
+      console.log(`⚠️ Player ${playerId} already answered question ${questionId} in room ${roomId}. Skipping.`);
+      return false;
+    }
+
     await dbRun(
-      `INSERT INTO player_answers (room_id, player_id, question_id, chosen_option, is_correct, answered_in_seconds)
-       VALUES (?, ?, ?, ?, ?, ? )`,
+      `INSERT OR IGNORE INTO player_answers (room_id, player_id, question_id, chosen_option, is_correct, answered_in_seconds)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [roomId, playerId, questionId, chosenOption, isCorrect ? 1 : 0, answeredInSeconds]
     );
+    console.log(`✅ Answer saved: player=${playerId}, question=${questionId}, correct=${isCorrect}, time=${answeredInSeconds}s`);
     return true;
   } catch (error) {
-    // If they already answered, ignore or return false
-    console.error('Answer already submitted or error:', error.message);
+    console.error(`❌ submitAnswer FAILED: player=${playerId}, question=${questionId}:`, error.message);
     return false;
   }
 }
