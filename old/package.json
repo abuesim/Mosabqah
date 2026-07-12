@@ -1,6 +1,6 @@
 {
   "name": "mosabqah",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "description": "Interactive Family Quiz Application",
   "main": "server.js",
   "type": "module",
