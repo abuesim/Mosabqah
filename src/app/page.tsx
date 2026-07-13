@@ -1,6 +1,7 @@
-import Link from 'next/link';
-import { Trophy, ShieldCheck, Monitor, Gamepad2 } from 'lucide-react';
-import Background from '@/components/ui/Background';
+import Link from "next/link";
+import { Trophy, ShieldCheck, Monitor, Gamepad2 } from "lucide-react";
+import Background from "@/components/ui/Background";
+import InstallAppButton from "@/components/InstallAppButton";
 
 export default function Home() {
   return (
@@ -15,7 +16,8 @@ export default function Home() {
             مُسَابَقَة عَصُومِي
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm text-ink-mute md:text-base">
-            المنصة التفاعلية المتكاملة لإدارة التحديات والمسابقات العائلية بالوقت الفعلي
+            المنصة التفاعلية المتكاملة لإدارة التحديات والمسابقات العائلية
+            بالوقت الفعلي
           </p>
         </div>
 
@@ -36,17 +38,25 @@ export default function Home() {
             tone="cyan"
           />
 
+          <InstallAppButton />
+
           {/* TV hint */}
           <div className="glass flex items-center gap-4 rounded-[var(--radius-card)] p-5 text-right">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gold/10 text-gold">
               <Monitor className="h-6 w-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-ink">شاشة التلفزيون للجمهور</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                لعرض الأسئلة والنتيجة على الشاشة الكبيرة، استخدم الرابط مع كود الغرفة:
+              <p className="text-sm font-bold text-ink">
+                شاشة التلفزيون للجمهور
               </p>
-              <code dir="ltr" className="mt-2 inline-block rounded-lg border border-line bg-void/60 px-3 py-1 font-display text-xs font-bold text-gold select-all">
+              <p className="mt-0.5 text-xs text-ink-mute">
+                لعرض الأسئلة والنتيجة على الشاشة الكبيرة، استخدم الرابط مع كود
+                الغرفة:
+              </p>
+              <code
+                dir="ltr"
+                className="mt-2 inline-block rounded-lg border border-line bg-void/60 px-3 py-1 font-display text-xs font-bold text-gold select-all"
+              >
                 /tv?code=XXXX
               </code>
             </div>
@@ -55,7 +65,7 @@ export default function Home() {
 
         {/* Footer */}
         <p className="mt-8 text-center text-[11px] text-ink-faint">
-          الإصدار 2.5.0 SaaS • مدعوم بـ Next.js و Supabase Realtime
+          الإصدار v1.1 • برمجة محمد المسند 0565406221
         </p>
       </div>
     </Background>
@@ -73,12 +83,12 @@ function PortalCard({
   icon: React.ReactNode;
   title: string;
   desc: string;
-  tone: 'neon' | 'cyan';
+  tone: "neon" | "cyan";
 }) {
   const toneClasses =
-    tone === 'neon'
-      ? 'from-neon/15 to-neon-deep/5 border-neon/20 hover:border-neon/40 text-neon-bright'
-      : 'from-cyan/15 to-cyan-deep/5 border-cyan/20 hover:border-cyan/40 text-cyan';
+    tone === "neon"
+      ? "from-neon/15 to-neon-deep/5 border-neon/20 hover:border-neon/40 text-neon-bright"
+      : "from-cyan/15 to-cyan-deep/5 border-cyan/20 hover:border-cyan/40 text-cyan";
 
   return (
     <Link
@@ -86,7 +96,9 @@ function PortalCard({
       className={`group glass rounded-[var(--radius-card)] border bg-gradient-to-l p-5 transition-all duration-300 hover:shadow-[var(--shadow-neon)] ${toneClasses}`}
     >
       <div className="flex items-center gap-4">
-        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/5 ${tone === 'neon' ? 'text-neon-bright' : 'text-cyan'} transition-transform group-hover:scale-110`}>
+        <div
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/5 ${tone === "neon" ? "text-neon-bright" : "text-cyan"} transition-transform group-hover:scale-110`}
+        >
           {icon}
         </div>
         <div className="min-w-0 flex-1">

@@ -3,11 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signUp, signIn, signInWithGoogle } from '@/lib/db';
-import { cn } from '@/lib/utils';
 import Background from '@/components/ui/Background';
 import Button from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Input';
-import { KeyRound, User, ShieldCheck, ArrowRightLeft, Mic, Settings, Zap } from 'lucide-react';
+import { KeyRound, User, ShieldCheck, ArrowRightLeft, Zap, Gamepad2, Mic } from 'lucide-react';
 
 /**
  * Username-based auth (Firebase Email/Password).
@@ -42,9 +41,9 @@ export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'presenter'>('presenter');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountRole, setAccountRole] = useState<'presenter' | 'player'>('presenter');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,14 +66,16 @@ export default function AuthPage() {
     }, 12000);
 
     try {
-      if (isSignUp) {
-        await signUp(cleanUsername, password, role);
+      const profile = isSignUp
+        ? await signUp(cleanUsername, password, accountRole)
+        : await signIn(cleanUsername, password);
+      if (profile?.role === 'player') {
+        router.push('/player');
       } else {
-        await signIn(cleanUsername, password);
+        router.push('/dashboard');
       }
       resolved = true;
       clearTimeout(timeoutId);
-      router.push('/dashboard');
     } catch (err: any) {
       resolved = true;
       clearTimeout(timeoutId);
@@ -91,8 +92,8 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      await signInWithGoogle();
-      router.push('/dashboard');
+      const profile = await signInWithGoogle(accountRole);
+      router.push(profile.role === 'player' ? '/player' : '/dashboard');
     } catch (err: any) {
       setError(mapAuthError(err?.message || String(err)));
     } finally {
@@ -150,22 +151,10 @@ export default function AuthPage() {
             </Field>
 
             {isSignUp && (
-              <Field label="نوع الحساب / الصلاحيات">
-                <div className="grid grid-cols-2 gap-3">
-                  <RoleButton
-                    active={role === 'presenter'}
-                    onClick={() => setRole('presenter')}
-                    icon={<Mic className="h-5 w-5" />}
-                    label="مقدم مسابقة"
-                  />
-                  <RoleButton
-                    active={role === 'admin'}
-                    onClick={() => setRole('admin')}
-                    icon={<Settings className="h-5 w-5" />}
-                    label="مدير النظام"
-                  />
-                </div>
-              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setAccountRole('presenter')} className={`rounded-xl border p-3 text-right text-xs transition-all ${accountRole === 'presenter' ? 'border-neon bg-neon/10 text-neon-bright' : 'border-line text-ink-mute'}`}><Mic className="mb-2 h-4 w-4" /><strong className="block">مقدم مسابقة</strong><span className="mt-1 block leading-5">ينشئ ويدير التحديات.</span></button>
+                <button type="button" onClick={() => setAccountRole('player')} className={`rounded-xl border p-3 text-right text-xs transition-all ${accountRole === 'player' ? 'border-cyan bg-cyan/10 text-cyan' : 'border-line text-ink-mute'}`}><Gamepad2 className="mb-2 h-4 w-4" /><strong className="block">متسابق</strong><span className="mt-1 block leading-5">يحفظ حسابه للدخول للعب.</span></button>
+              </div>
             )}
 
             <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading} className="mt-2">
@@ -219,33 +208,5 @@ export default function AuthPage() {
         </button>
       </div>
     </Background>
-  );
-}
-
-function RoleButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex cursor-pointer flex-col items-center gap-2 rounded-xl border py-4 text-xs font-bold transition-all duration-200',
-        active
-          ? 'border-neon/60 bg-neon/15 text-neon-bright shadow-[var(--shadow-neon)]'
-          : 'border-line bg-void-2/50 text-ink-mute hover:border-line-strong hover:text-ink-soft'
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

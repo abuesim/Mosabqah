@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Tajawal, Orbitron, Alkalami } from "next/font/google";
+import { Tajawal, Orbitron, Alkalami, Manrope } from "next/font/google";
 import "./globals.css";
 
 const tajawal = Tajawal({
@@ -23,10 +23,28 @@ const alkalami = Alkalami({
   display: "swap",
 });
 
+const manrope = Manrope({
+  variable: "--font-numeric",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "مُسَابَقَة عَصُومِي",
   description:
     "المنصة التفاعلية المتكاملة لإدارة التحديات والمسابقات العائلية بالوقت الفعلي — مدعومة بـ Next.js و Supabase.",
+  applicationName: "مسابقة عصومي",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "مسابقة عصومي",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/app-icon.svg",
+    apple: "/app-icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
@@ -44,7 +62,7 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`${tajawal.variable} ${orbitron.variable} ${alkalami.variable} h-full antialiased`}
+      className={`${tajawal.variable} ${orbitron.variable} ${alkalami.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-void text-ink">
         {children}

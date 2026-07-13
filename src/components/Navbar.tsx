@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import {
   LogOut,
   BookOpen,
+  Gamepad2,
   Layers,
   Trophy,
   User,
@@ -31,8 +32,14 @@ export default function Navbar() {
         router.push('/auth');
         return;
       }
-      const data = await getUserProfile(user.uid);
-      if (data) setProfile({ username: data.username, role: data.role });
+      const [data, tokenResult] = await Promise.all([
+        getUserProfile(user.uid),
+        user.getIdTokenResult(),
+      ]);
+      setProfile({
+        username: data?.username || user.displayName || user.email?.split('@')[0] || 'مدير النظام',
+        role: tokenResult.claims.admin === true ? 'admin' : data?.role || 'presenter',
+      });
     });
     return () => unsub();
   }, [router]);
@@ -44,9 +51,12 @@ export default function Navbar() {
 
   const navLinks = [
     { href: '/dashboard', label: 'الرئيسية', icon: Home },
-    { href: '/dashboard/questions', label: 'بنك الأسئلة', icon: BookOpen },
+    { href: '/dashboard/profile', label: 'ملفي', icon: User },
+    { href: '/dashboard/games', label: 'مكتب الألعاب', icon: Gamepad2 },
+    ...(profile?.role === 'admin' ? [{ href: '/dashboard/questions', label: 'بنك الأسئلة', icon: BookOpen }] : []),
     { href: '/dashboard/sessions', label: 'الجلسات', icon: Layers },
     { href: '/dashboard/winners', label: 'أرشيف الفائزين', icon: Trophy },
+    ...(profile?.role === 'admin' ? [{ href: '/dashboard/admin', label: 'إدارة النظام', icon: User }] : []),
   ];
 
   return (

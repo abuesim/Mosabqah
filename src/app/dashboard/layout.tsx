@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { getUserProfile } from '@/lib/db';
 import Navbar from '@/components/Navbar';
 import Background from '@/components/ui/Background';
 import Spinner from '@/components/ui/Spinner';
@@ -19,8 +20,13 @@ export default function DashboardLayout({
   useEffect(() => {
     // onAuthStateChanged is the idiomatic Firebase way to watch login state.
     // It fires immediately with the cached user (if any) and on every change.
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile?.role === 'player') {
+          router.replace('/player');
+          return;
+        }
         setAuthenticated(true);
       } else {
         router.push('/auth');

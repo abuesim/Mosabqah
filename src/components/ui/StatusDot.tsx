@@ -2,12 +2,17 @@ import { cn } from '@/lib/utils';
 import { Circle } from 'lucide-react';
 
 /** Session status as stored in the `sessions` table. */
-export type SessionStatus = 'waiting' | 'active' | 'finished';
+export type SessionStatus = 'waiting' | 'ready' | 'active' | 'paused' | 'scheduled' | 'finished' | 'cancelled' | 'archived';
 
 const map: Record<SessionStatus, { label: string; color: string; ring: string }> = {
-  waiting: { label: 'انتظار', color: 'text-ink-mute', ring: 'fill-ink-mute' },
-  active: { label: 'نشطة الآن', color: 'text-success-bright', ring: 'fill-success' },
-  finished: { label: 'منتهية', color: 'text-danger-bright', ring: 'fill-danger' },
+  waiting: { label: 'بانتظار المتسابقين', color: 'text-cyan', ring: 'fill-cyan' },
+  ready: { label: 'جاهزة للبدء', color: 'text-neon-bright', ring: 'fill-neon' },
+  active: { label: 'مباشرة الآن', color: 'text-success-bright', ring: 'fill-success' },
+  paused: { label: 'متوقفة مؤقتاً', color: 'text-gold', ring: 'fill-gold' },
+  scheduled: { label: 'مجدولة', color: 'text-magenta', ring: 'fill-magenta' },
+  finished: { label: 'مكتملة', color: 'text-success-bright', ring: 'fill-success' },
+  cancelled: { label: 'ملغاة', color: 'text-danger-bright', ring: 'fill-danger' },
+  archived: { label: 'مؤرشفة', color: 'text-ink-mute', ring: 'fill-ink-mute' },
 };
 
 /** A live status indicator: colored dot + text label. */

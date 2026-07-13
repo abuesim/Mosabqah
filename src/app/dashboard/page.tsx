@@ -6,7 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getUserProfile, getCounts, getSessions } from '@/lib/db';
 import type { Session } from '@/lib/db';
-import { BookOpen, Layers, Trophy, ArrowLeft, Play, Plus, Mic, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, Trophy, ArrowLeft, Play, Plus, Sparkles, Gamepad2 } from 'lucide-react';
 import StatCard from '@/components/ui/StatCard';
 import StatusDot from '@/components/ui/StatusDot';
 import Spinner from '@/components/ui/Spinner';
@@ -16,13 +16,25 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ questionsCount: 0, sessionsCount: 0, winnersCount: 0 });
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        window.location.href = '/auth';
+        return;
+      }
       try {
-        const userProfile = await getUserProfile(user.uid);
-        if (userProfile) setProfile({ id: userProfile.uid, username: userProfile.username, role: userProfile.role });
+        const [userProfile, tokenResult] = await Promise.all([
+          getUserProfile(user.uid),
+          user.getIdTokenResult(),
+        ]);
+        setProfile({
+          id: user.uid,
+          username: userProfile?.username || user.displayName || user.email?.split('@')[0] || 'مدير النظام',
+          role: tokenResult.claims.admin === true ? 'admin' : userProfile?.role || 'presenter',
+        });
 
         const [counts, sessions] = await Promise.all([
           getCounts(),
@@ -30,8 +42,9 @@ export default function DashboardPage() {
         ]);
         setStats(counts);
         setActiveSessions(sessions);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
+        setError(err?.message || String(err));
       } finally {
         setLoading(false);
       }
@@ -47,6 +60,23 @@ export default function DashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 max-w-md mx-auto anim-rise">
+        <div className="p-5 bg-danger/10 border border-danger/25 rounded-2xl text-danger-bright text-sm font-semibold shadow-lg">
+          حدث خطأ أثناء تحميل البيانات من قاعدة البيانات:
+          <p className="mt-3 font-mono text-xs opacity-90 dir-ltr bg-black/35 p-3 rounded-lg overflow-x-auto text-left select-all">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-2.5 rounded-xl bg-neon text-white font-bold text-sm shadow-[var(--shadow-neon)] hover:opacity-90 transition-all cursor-pointer"
+        >
+          إعادة المحاولة 🔄
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="anim-rise space-y-8">
       {/* Welcome banner */}
@@ -58,14 +88,14 @@ export default function DashboardPage() {
             <span className="mr-2 inline-block anim-pulse-neon text-neon-bright">●</span>
           </h2>
           <p className="mt-2 max-w-xl text-sm text-ink-mute md:text-base">
-            أهلاً بك في لوحة الإدارة لمسابقاتك. تصفح بنك الأسئلة المركزي، وأدر التحديات النشطة وابدأ جلسات جديدة فوراً.
+            أنشئ تحدياتك من مكتب الألعاب، ثم أدر الجلسات النشطة لحظياً من غرفة التحكم.
           </p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <StatCard label="إجمالي بنك الأسئلة" value={stats.questionsCount} icon={BookOpen} tone="neon" />
+        <StatCard label={profile?.role === 'admin' ? 'إجمالي بنك الأسئلة' : 'أسئلة المكتبة المتاحة'} value={stats.questionsCount} icon={BookOpen} tone="neon" />
         <StatCard label="الجلسات المنشأة" value={stats.sessionsCount} icon={Layers} tone="cyan" />
         <StatCard label="أرشيف الفائزين" value={stats.winnersCount} icon={Trophy} tone="gold" />
       </div>
@@ -80,10 +110,10 @@ export default function DashboardPage() {
               جلساتك النشطة والسابقة
             </h3>
             <Link
-              href="/dashboard/sessions"
+              href="/dashboard/games"
               className="flex items-center gap-1.5 text-xs font-semibold text-neon-bright underline-offset-2 hover:underline"
             >
-              إدارة الجلسات <ArrowLeft className="h-3.5 w-3.5" />
+              إنشاء تحدٍ <ArrowLeft className="h-3.5 w-3.5" />
             </Link>
           </div>
 
@@ -124,16 +154,16 @@ export default function DashboardPage() {
           <h3 className="text-lg font-bold text-ink">إجراءات سريعة</h3>
           <div className="flex flex-col gap-4">
             <Link
-              href="/dashboard/sessions"
+              href="/dashboard/games"
               className="group glass rounded-[var(--radius-card)] border border-neon/20 bg-gradient-to-br from-neon/10 to-transparent p-5 transition-all hover:border-neon/40 hover:shadow-[var(--shadow-neon)]"
             >
               <div className="flex items-start gap-4">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-neon/15 text-neon-bright transition-transform group-hover:scale-110">
-                  <Mic className="h-5 w-5" />
+                  <Gamepad2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-ink">إنشاء تحدي / جلسة جديدة</h4>
-                  <p className="mt-1 text-xs text-ink-mute">ابدأ مسابقة جديدة مع الأصدقاء أو العائلة وشارك الكود</p>
+                  <h4 className="text-sm font-bold text-ink">مكتب الألعاب</h4>
+                  <p className="mt-1 text-xs text-ink-mute">أنشئ تحدياً جديداً عبر معالج بسيط واختر المحتوى والوقت</p>
                 </div>
               </div>
             </Link>

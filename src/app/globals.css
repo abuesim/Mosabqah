@@ -10,7 +10,7 @@
 @theme {
   /* ---------- Fonts ---------- */
   --font-sans: var(--font-tajawal), "Tajawal", system-ui, sans-serif;
-  --font-display: var(--font-orbitron), "Orbitron", ui-monospace, monospace;
+  --font-display: var(--font-numeric), "Manrope", system-ui, sans-serif;
   --font-brand: var(--font-alkalami), "Alkalami", "Tajawal", serif;
 
   /* ---------- Void / Surface ramp (deep black → void violet) ---------- */
@@ -169,7 +169,9 @@
 
   /* Neon ring border helper */
   .ring-neon {
-    box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.5), var(--shadow-neon);
+    box-shadow:
+      0 0 0 1px rgba(168, 85, 247, 0.5),
+      var(--shadow-neon);
   }
 
   /* Signature animated grid overlay for the global background */
@@ -179,16 +181,36 @@
       linear-gradient(90deg, rgba(168, 85, 247, 0.06) 1px, transparent 1px);
     background-size: 48px 48px;
     mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
-    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+    -webkit-mask-image: radial-gradient(
+      ellipse at center,
+      black 30%,
+      transparent 78%
+    );
   }
 
   /* Animated mesh blobs */
   .bg-mesh {
     background:
-      radial-gradient(40% 50% at 15% 12%, rgba(124, 58, 237, 0.30), transparent 70%),
-      radial-gradient(45% 55% at 85% 18%, rgba(6, 182, 212, 0.18), transparent 70%),
-      radial-gradient(50% 50% at 75% 88%, rgba(232, 121, 249, 0.16), transparent 70%),
-      radial-gradient(35% 40% at 25% 82%, rgba(251, 191, 36, 0.10), transparent 70%);
+      radial-gradient(
+        40% 50% at 15% 12%,
+        rgba(124, 58, 237, 0.3),
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 55% at 85% 18%,
+        rgba(6, 182, 212, 0.18),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 50% at 75% 88%,
+        rgba(232, 121, 249, 0.16),
+        transparent 70%
+      ),
+      radial-gradient(
+        35% 40% at 25% 82%,
+        rgba(251, 191, 36, 0.1),
+        transparent 70%
+      );
   }
 }
 
@@ -197,51 +219,287 @@
 /* ------------------------------------------------------------------- */
 
 @keyframes float-slow {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -18px, 0); }
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0);
+  }
 }
 
 @keyframes pulse-neon {
-  0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
-  50% { opacity: 0.55; filter: drop-shadow(0 0 16px currentColor); }
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  50% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 16px currentColor);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes count-pop {
-  0% { transform: scale(0.4); opacity: 0; }
-  55% { transform: scale(1.18); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes shake-x {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-8px); }
-  40% { transform: translateX(7px); }
-  60% { transform: translateX(-5px); }
-  80% { transform: translateX(3px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-5px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
 }
 
 @keyframes rise-in {
-  0% { transform: translateY(14px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+  0% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes type-reveal-rtl {
+  0% {
+    clip-path: inset(0 0 0 100%);
+    opacity: 0.35;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes option-enter {
+  0% {
+    transform: translateY(10px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes winner-card-enter {
+  0% {
+    transform: translateY(20px) scale(0.88);
+    opacity: 0;
+  }
+  65% {
+    transform: translateY(-3px) scale(1.025);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes celebration-bubbles {
+  0% {
+    transform: translateY(24px) scale(0.9);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(-32px) scale(1.08);
+    opacity: 0;
+  }
+}
+
+@keyframes tarkeeba-letter-reveal {
+  0% {
+    transform: rotateX(90deg) scale(0.88);
+    opacity: 0.15;
+  }
+  65% {
+    transform: rotateX(-8deg) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes tarkeeba-correct-celebrate {
+  0% {
+    transform: rotateX(90deg) scale(0.82);
+    box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+  }
+  58% {
+    transform: rotateX(-10deg) scale(1.16);
+    box-shadow: 0 0 24px rgba(34, 197, 94, 0.75);
+  }
+  100% {
+    transform: rotateX(0) scale(1);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.38);
+  }
+}
+
+@keyframes top10-card-flip {
+  0% {
+    transform: perspective(700px) rotateY(90deg) scale(0.9);
+    opacity: 0;
+  }
+  65% {
+    transform: perspective(700px) rotateY(-7deg) scale(1.035);
+    opacity: 1;
+  }
+  100% {
+    transform: perspective(700px) rotateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes top10-ticker-move {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(50%);
+  }
 }
 
 /* Animation utility classes */
-.anim-float { animation: float-slow 7s ease-in-out infinite; }
-.anim-float-slow { animation: float-slow 11s ease-in-out infinite; }
-.anim-pulse-neon { animation: pulse-neon 1.6s ease-in-out infinite; }
+.anim-float {
+  animation: float-slow 7s ease-in-out infinite;
+}
+.anim-float-slow {
+  animation: float-slow 11s ease-in-out infinite;
+}
+.anim-pulse-neon {
+  animation: pulse-neon 1.6s ease-in-out infinite;
+}
 .anim-shimmer {
-  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.16) 50%, transparent 70%);
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.16) 50%,
+    transparent 70%
+  );
   background-size: 200% 100%;
   animation: shimmer 2.2s linear infinite;
 }
-.anim-count-pop { animation: count-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.anim-shake { animation: shake-x 0.5s ease-in-out; }
-.anim-rise { animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-count-pop {
+  animation: count-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-shake {
+  animation: shake-x 0.5s ease-in-out;
+}
+.anim-rise {
+  animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-typewriter-rtl {
+  animation: type-reveal-rtl 0.62s steps(18, end) both;
+  transform-origin: right center;
+}
+.anim-option-enter {
+  animation: option-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-winner-card {
+  animation: winner-card-enter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-tarkeeba-letter {
+  animation: tarkeeba-letter-reveal 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+.anim-tarkeeba-correct {
+  animation-name: tarkeeba-correct-celebrate;
+  animation-duration: 0.62s;
+}
+.top10-card-flip {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  animation: top10-card-flip 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.top10-ticker {
+  animation: top10-ticker-move 24s linear infinite;
+}
+.winner-celebration {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.winner-celebration::before,
+.winner-celebration::after {
+  content: "";
+  position: absolute;
+  inset: 12% 5% auto;
+  z-index: -1;
+  height: 75%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 8% 72%,
+      rgba(34, 211, 238, 0.65) 0 5px,
+      transparent 6px
+    ),
+    radial-gradient(
+      circle at 24% 28%,
+      rgba(251, 191, 36, 0.65) 0 7px,
+      transparent 8px
+    ),
+    radial-gradient(
+      circle at 48% 78%,
+      rgba(168, 85, 247, 0.65) 0 6px,
+      transparent 7px
+    ),
+    radial-gradient(
+      circle at 70% 22%,
+      rgba(236, 72, 153, 0.6) 0 5px,
+      transparent 6px
+    ),
+    radial-gradient(
+      circle at 92% 66%,
+      rgba(34, 197, 94, 0.6) 0 7px,
+      transparent 8px
+    );
+  animation: celebration-bubbles 2.4s ease-out infinite;
+}
+.winner-celebration::after {
+  animation-delay: 1.15s;
+  transform: scaleX(-1);
+}
 
 /* Respect reduced-motion: kill all decorative animation */
 @media (prefers-reduced-motion: reduce) {
