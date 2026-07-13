@@ -108,6 +108,7 @@ type PickMode = "manual" | "random" | "custom";
 type GameQuestionRule = {
   categories?: string[];
   questionTypes?: Array<"text" | "image" | "word">;
+  bankEnabled?: boolean;
 };
 
 const MODE_INFO: Array<{
@@ -404,6 +405,7 @@ export default function GamesOfficePage() {
     () =>
       questions.filter((question) => {
         const rule = gameQuestionRules[gameMode];
+        if (rule?.bankEnabled === false) return false;
         if (
           ["quiz", "survival", "faction"].includes(gameMode) &&
           question.questionType === "word"
@@ -646,6 +648,21 @@ export default function GamesOfficePage() {
       ];
       nextCategory[index] = questionId;
       return { ...current, [selectedCategory]: nextCategory };
+    });
+  };
+
+  // Move a question from one slot to another within the same category (reorder).
+  const moveMoneyQuestion = (
+    selectedCategory: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => {
+    if (fromIndex === toIndex) return;
+    setMoneyQuestionSelections((current) => {
+      const list = [...(current[selectedCategory] || ["", "", "", "", ""])];
+      const [moved] = list.splice(fromIndex, 1);
+      list.splice(toIndex, 0, moved);
+      return { ...current, [selectedCategory]: list };
     });
   };
 
@@ -1316,7 +1333,11 @@ export default function GamesOfficePage() {
             </div>
           ) : gameMode === "top10" ? (
             <Top10BankPicker
-              questions={top10Questions}
+              questions={
+                gameQuestionRules.top10?.bankEnabled === false
+                  ? []
+                  : top10Questions
+              }
               mode={top10SelectionMode}
               onModeChange={(mode) => {
                 setTop10SelectionMode(mode);
@@ -1885,27 +1906,31 @@ export default function GamesOfficePage() {
                 type="button"
                 onClick={() => setMoneyScoring("ranked")}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1 rounded-xl border p-4 text-right transition-all duration-200",
+                  "anim-option-enter group flex cursor-pointer flex-col gap-1 rounded-xl border p-4 text-right transition-all duration-300 hover:scale-[1.02]",
                   moneyScoring === "ranked"
-                    ? "border-neon/60 bg-neon/15 text-neon-bright shadow-[var(--shadow-neon)]"
-                    : "border-line bg-void-2/50 text-ink-mute hover:border-line-strong hover:text-ink-soft",
+                    ? "border-gold/60 bg-gold/15 text-gold shadow-[var(--shadow-gold)]"
+                    : "border-gold/20 bg-gold/5 text-ink-mute hover:border-gold/40 hover:bg-gold/10 hover:text-gold",
                 )}
               >
                 <span className="text-sm font-bold">حسب ترتيب السرعة</span>
-                <span className="text-[11px] opacity-80">كل إجابة صحيحة تربح المبلغ</span>
+                <span className="text-[11px] opacity-80">
+                  كل إجابة صحيحة تربح المبلغ
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => setMoneyScoring("fastest")}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1 rounded-xl border p-4 text-right transition-all duration-200",
+                  "anim-option-enter group flex cursor-pointer flex-col gap-1 rounded-xl border p-4 text-right transition-all duration-300 hover:scale-[1.02]",
                   moneyScoring === "fastest"
-                    ? "border-neon/60 bg-neon/15 text-neon-bright shadow-[var(--shadow-neon)]"
-                    : "border-line bg-void-2/50 text-ink-mute hover:border-line-strong hover:text-ink-soft",
+                    ? "border-cyan/60 bg-cyan/15 text-cyan shadow-[var(--shadow-cyan)]"
+                    : "border-cyan/20 bg-cyan/5 text-ink-mute hover:border-cyan/40 hover:bg-cyan/10 hover:text-cyan",
                 )}
               >
                 <span className="text-sm font-bold">الأسرع فقط</span>
-                <span className="text-[11px] opacity-80">أول إجابة صحيحة تربح المبلغ</span>
+                <span className="text-[11px] opacity-80">
+                  أول إجابة صحيحة تربح المبلغ
+                </span>
               </button>
             </div>
           </Field>
@@ -1993,7 +2018,7 @@ export default function GamesOfficePage() {
                       return (
                         <div
                           key={`${moneyCategory}-${index}`}
-                          className="grid items-center gap-2 sm:grid-cols-[100px_64px_1fr]"
+                          className="anim-option-enter grid items-center gap-2 rounded-xl border border-line bg-void/30 p-2 transition-all duration-300 hover:border-neon/30 sm:grid-cols-[100px_64px_1fr_auto]"
                         >
                           <span className="rounded-xl border border-gold/30 bg-gold/10 px-3 py-3 text-center font-display font-black text-gold">
                             {value}
@@ -2036,6 +2061,29 @@ export default function GamesOfficePage() {
                               </option>
                             ))}
                           </Select>
+                          {/* Reorder arrows */}
+                          <div className="flex gap-1 sm:flex-col">
+                            <button
+                              type="button"
+                              disabled={index === 0}
+                              onClick={() => moveMoneyQuestion(moneyCategory, index, index - 1)}
+                              className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg border border-neon/30 bg-neon/10 text-neon-bright transition-all hover:bg-neon/25 hover:shadow-[var(--shadow-neon)] disabled:opacity-20 disabled:cursor-not-allowed"
+                              aria-label="تحريك لأعلى"
+                              title="تحريك لأعلى"
+                            >
+                              <ChevronRight className="h-4 w-4 rotate-[-90deg]" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === moneyValues.length - 1}
+                              onClick={() => moveMoneyQuestion(moneyCategory, index, index + 1)}
+                              className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg border border-neon/30 bg-neon/10 text-neon-bright transition-all hover:bg-neon/25 hover:shadow-[var(--shadow-neon)] disabled:opacity-20 disabled:cursor-not-allowed"
+                              aria-label="تحريك لأسفل"
+                              title="تحريك لأسفل"
+                            >
+                              <ChevronRight className="h-4 w-4 rotate-90" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

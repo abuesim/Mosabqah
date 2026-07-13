@@ -28,6 +28,7 @@ type ManagedUser = {
 type GameQuestionRule = {
   categories?: string[];
   questionTypes?: Array<"text" | "image" | "word">;
+  bankEnabled?: boolean;
 };
 type AdminData = {
   users: ManagedUser[];
@@ -56,16 +57,45 @@ const GAME_MODES = [
   { id: "baathra", label: "بعثرة" },
   { id: "money", label: "فلوسك على المحك" },
   { id: "top10", label: "TOP 10" },
-];
-const QUESTION_GAMES = [
-  { id: "quiz", label: "تحدي الأسئلة والإعلام" },
-  { id: "survival", label: "الزنزانة" },
-  { id: "faction", label: "حرب الفواكه / الدول" },
-  { id: "word", label: "الكلمة المفقودة" },
-  { id: "image-reveal", label: "تخمين الصور — كشف الستار" },
-  { id: "money", label: "فلوسك على المحك" },
 ] as const;
+const QUESTION_GAMES = GAME_MODES;
 type QuestionGameId = (typeof QUESTION_GAMES)[number]["id"];
+const QUESTION_BANK_INFO: Record<
+  QuestionGameId,
+  { mode: "standard" | "special" | "none"; description: string }
+> = {
+  quiz: { mode: "standard", description: "بنك الأسئلة النصية والصور." },
+  chairs: {
+    mode: "none",
+    description:
+      "لعبة الكراسي تعتمد على أرقام الكراسي ولا تسحب أسئلة من البنك.",
+  },
+  survival: { mode: "standard", description: "بنك الأسئلة النصية والصور." },
+  faction: { mode: "standard", description: "بنك الأسئلة النصية والصور." },
+  impostor: {
+    mode: "none",
+    description: "أمبوستر يستخدم كلمة سرية وتصنيفاً يحددهما المقدم.",
+  },
+  roulette: {
+    mode: "none",
+    description: "عجلة الروليت تستخدم الجوائز ولا تحتاج أسئلة.",
+  },
+  word: { mode: "standard", description: "بنك الكلمات التخمينية." },
+  "image-reveal": {
+    mode: "standard",
+    description: "بنك أسئلة الصور ذات الخيارات الأربعة.",
+  },
+  tarkeeba: { mode: "standard", description: "بنك الكلمات المكونة من 5 أحرف." },
+  baathra: {
+    mode: "special",
+    description: "تستخدم بنك بعثرة المخصص للحروف والأسماء والتصحيح التلقائي.",
+  },
+  money: { mode: "standard", description: "بنك الأسئلة النصية والصور." },
+  top10: {
+    mode: "special",
+    description: "تستخدم بنك TOP 10 المستقل: سؤال رئيسي و10 إجابات ومرادفات.",
+  },
+};
 const QUESTION_TYPES: Array<{ id: "text" | "image" | "word"; label: string }> =
   [
     { id: "text", label: "أسئلة نصية" },
@@ -247,6 +277,7 @@ export default function AdminPage() {
   };
 
   const activeQuestionRule = questionRules[ruleGame] || {};
+  const activeBankInfo = QUESTION_BANK_INFO[ruleGame];
 
   if (!data && !error)
     return (
@@ -454,116 +485,162 @@ export default function AdminPage() {
           ))}
         </div>
         <div className="mt-5 space-y-5 rounded-2xl border border-line bg-void/25 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-xl border border-cyan/25 bg-cyan/5 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-bold text-ink">
-                {QUESTION_GAMES.find((game) => game.id === ruleGame)?.label}
+              <p className="text-xs font-black text-cyan">
+                مصدر الأسئلة لهذه اللعبة
               </p>
-              <p className="mt-1 text-xs text-ink-mute">
-                التصنيفات المحددة فقط هي التي تظهر للمقدم في هذه اللعبة.
+              <p className="mt-1 text-xs leading-6 text-ink-mute">
+                {activeBankInfo.description}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                updateQuestionRule(ruleGame, (current) => ({
-                  ...current,
-                  categories:
-                    activeQuestionRule.categories?.length ===
-                    data!.questionCategories.length
-                      ? []
-                      : data!.questionCategories,
-                }))
-              }
-            >
-              {activeQuestionRule.categories?.length ===
-              data!.questionCategories.length
-                ? "السماح بكل التصنيفات"
-                : "تحديد كل التصنيفات"}
-            </Button>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-bold text-ink-soft">التصنيفات</p>
-            <div className="flex flex-wrap gap-2">
-              {data!.questionCategories.length === 0 ? (
-                <span className="text-xs text-ink-mute">
-                  لا توجد تصنيفات في بنك الأسئلة بعد.
-                </span>
-              ) : (
-                data!.questionCategories.map((item) => {
-                  const chosen =
-                    activeQuestionRule.categories?.includes(item) || false;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        updateQuestionRule(ruleGame, (current) => ({
-                          ...current,
-                          categories: chosen
-                            ? (current.categories || []).filter(
-                                (category) => category !== item,
-                              )
-                            : [...(current.categories || []), item],
-                        }))
-                      }
-                      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${chosen ? "border-neon/40 bg-neon/10 text-neon-bright" : "border-line bg-void/40 text-ink-mute hover:border-neon/25"}`}
-                    >
-                      {chosen ? "✓ " : ""}
-                      {item}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-            {!activeQuestionRule.categories?.length && (
-              <p className="mt-2 text-[11px] text-gold">
-                لم تُحدد تصنيفات بعد: هذا يعني السماح بكل التصنيفات. استخدم
-                «تحديد كل التصنيفات» ثم أزل ما لا تريده.
-              </p>
+            {activeBankInfo.mode !== "none" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  updateQuestionRule(ruleGame, (current) => ({
+                    ...current,
+                    bankEnabled: current.bankEnabled === false,
+                  }))
+                }
+                className={`shrink-0 rounded-xl border px-4 py-2 text-xs font-black transition ${activeQuestionRule.bankEnabled === false ? "border-danger/35 bg-danger/10 text-danger-bright" : "border-success/35 bg-success/10 text-success-bright"}`}
+              >
+                {activeQuestionRule.bankEnabled === false
+                  ? "البنك غير مسموح"
+                  : "البنك مسموح ✓"}
+              </button>
             )}
           </div>
-          <div>
-            <p className="mb-2 text-xs font-bold text-ink-soft">
-              أنواع الأسئلة
+          {activeBankInfo.mode === "none" && (
+            <p className="rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-xs leading-6 text-gold">
+              تظهر اللعبة ضمن القائمة حتى تكون جميع الألعاب واضحة للمدير، لكنها
+              لا تحتاج صلاحيات تصنيفات أو أنواع أسئلة في آليتها الحالية.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {QUESTION_TYPES.map((type) => {
-                const chosen =
-                  activeQuestionRule.questionTypes?.includes(type.id) || false;
-                return (
-                  <button
-                    key={type.id}
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      updateQuestionRule(ruleGame, (current) => ({
-                        ...current,
-                        questionTypes: chosen
-                          ? (current.questionTypes || []).filter(
-                              (questionType) => questionType !== type.id,
-                            )
-                          : [...(current.questionTypes || []), type.id],
-                      }))
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${chosen ? "border-cyan/40 bg-cyan/10 text-cyan" : "border-line bg-void/40 text-ink-mute hover:border-cyan/25"}`}
-                  >
-                    {chosen ? "✓ " : ""}
-                    {type.label}
-                  </button>
-                );
-              })}
-            </div>
-            {!activeQuestionRule.questionTypes?.length && (
-              <p className="mt-2 text-[11px] text-gold">
-                لم تُحدد أنواع بعد: هذا يعني السماح بكل الأنواع التي تدعمها
-                اللعبة.
-              </p>
-            )}
-          </div>
+          )}
+          {activeBankInfo.mode === "special" && (
+            <p className="rounded-xl border border-neon/25 bg-neon/5 px-4 py-3 text-xs leading-6 text-ink-mute">
+              هذه اللعبة تستخدم بنكاً متخصصاً، لذلك يكفي السماح بالبنك أو منعه؛
+              تصنيفات وأنواع البنك العام لا تنطبق عليها.
+            </p>
+          )}
+          {activeBankInfo.mode === "standard" && (
+            <>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-bold text-ink">
+                    {QUESTION_GAMES.find((game) => game.id === ruleGame)?.label}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-mute">
+                    التصنيفات المحددة فقط هي التي تظهر للمقدم في هذه اللعبة.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    updateQuestionRule(ruleGame, (current) => ({
+                      ...current,
+                      categories:
+                        activeQuestionRule.categories?.length ===
+                        data!.questionCategories.length
+                          ? []
+                          : data!.questionCategories,
+                    }))
+                  }
+                >
+                  {activeQuestionRule.categories?.length ===
+                  data!.questionCategories.length
+                    ? "السماح بكل التصنيفات"
+                    : "تحديد كل التصنيفات"}
+                </Button>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold text-ink-soft">
+                  التصنيفات
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {data!.questionCategories.length === 0 ? (
+                    <span className="text-xs text-ink-mute">
+                      لا توجد تصنيفات في بنك الأسئلة بعد.
+                    </span>
+                  ) : (
+                    data!.questionCategories.map((item) => {
+                      const chosen =
+                        activeQuestionRule.categories?.includes(item) || false;
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            updateQuestionRule(ruleGame, (current) => ({
+                              ...current,
+                              categories: chosen
+                                ? (current.categories || []).filter(
+                                    (category) => category !== item,
+                                  )
+                                : [...(current.categories || []), item],
+                            }))
+                          }
+                          className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${chosen ? "border-neon/40 bg-neon/10 text-neon-bright" : "border-line bg-void/40 text-ink-mute hover:border-neon/25"}`}
+                        >
+                          {chosen ? "✓ " : ""}
+                          {item}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {!activeQuestionRule.categories?.length && (
+                  <p className="mt-2 text-[11px] text-gold">
+                    لم تُحدد تصنيفات بعد: هذا يعني السماح بكل التصنيفات. استخدم
+                    «تحديد كل التصنيفات» ثم أزل ما لا تريده.
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold text-ink-soft">
+                  أنواع الأسئلة
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUESTION_TYPES.map((type) => {
+                    const chosen =
+                      activeQuestionRule.questionTypes?.includes(type.id) ||
+                      false;
+                    return (
+                      <button
+                        key={type.id}
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          updateQuestionRule(ruleGame, (current) => ({
+                            ...current,
+                            questionTypes: chosen
+                              ? (current.questionTypes || []).filter(
+                                  (questionType) => questionType !== type.id,
+                                )
+                              : [...(current.questionTypes || []), type.id],
+                          }))
+                        }
+                        className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${chosen ? "border-cyan/40 bg-cyan/10 text-cyan" : "border-line bg-void/40 text-ink-mute hover:border-cyan/25"}`}
+                      >
+                        {chosen ? "✓ " : ""}
+                        {type.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!activeQuestionRule.questionTypes?.length && (
+                  <p className="mt-2 text-[11px] text-gold">
+                    لم تُحدد أنواع بعد: هذا يعني السماح بكل الأنواع التي تدعمها
+                    اللعبة.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
           <div className="flex justify-end">
             <Button
               variant="success"

@@ -188,6 +188,7 @@ type ManualSessionStatus = (typeof MANUAL_SESSION_STATUSES)[number]["value"];
 type GameQuestionRule = {
   categories?: string[];
   questionTypes?: Array<"text" | "image" | "word">;
+  bankEnabled?: boolean;
 };
 
 const GAME_MODE_LABELS: Record<
@@ -1598,6 +1599,7 @@ function SessionsPageContent() {
   const getMoneyEditPool = (selectedCategory?: string) =>
     questions
       .filter((question) => {
+        if (gameQuestionRules.money?.bankEnabled === false) return false;
         if (question.questionType === "word") return false;
         if (selectedCategory && question.category !== selectedCategory)
           return false;
@@ -2332,9 +2334,12 @@ function SessionsPageContent() {
         round.nameRoundId ? [round.nameRoundId] : [],
       ),
     );
-    const availableBaathraNameRounds = baathraNameRounds.filter(
-      (round) => !usedBaathraNameRoundIds.has(round.id),
-    );
+    const availableBaathraNameRounds =
+      gameQuestionRules.baathra?.bankEnabled === false
+        ? []
+        : baathraNameRounds.filter(
+            (round) => !usedBaathraNameRoundIds.has(round.id),
+          );
     const selectedBaathraReferenceRound = baathraNameRounds.find(
       (round) => round.id === baathraNameRoundId,
     );
@@ -2375,6 +2380,7 @@ function SessionsPageContent() {
       if (sessionQuestionIds.has(question.id)) return false;
       const mode = activeSession.gameMode || "quiz";
       const rule = gameQuestionRules[mode];
+      if (rule?.bankEnabled === false) return false;
       if (
         ["word", "tarkeeba"].includes(mode) &&
         question.questionType !== "word"
@@ -3178,7 +3184,11 @@ function SessionsPageContent() {
                   مخصصاً. الحفظ يعيد البطاقات العشر إلى حالة غير مكشوفة.
                 </p>
                 <Top10BankPicker
-                  questions={top10Questions}
+                  questions={
+                    gameQuestionRules.top10?.bankEnabled === false
+                      ? []
+                      : top10Questions
+                  }
                   mode={top10EditMode}
                   onModeChange={(mode) => {
                     setTop10EditMode(mode);

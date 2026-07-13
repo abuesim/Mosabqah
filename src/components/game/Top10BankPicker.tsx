@@ -73,12 +73,13 @@ export default function Top10BankPicker({
           <button
             key={item.id}
             type="button"
+            disabled={item.id !== "custom" && questions.length === 0}
             onClick={() => {
               onModeChange(item.id);
               if (item.id === "random") chooseRandom();
             }}
             className={cn(
-              "rounded-xl border px-4 py-3 text-xs font-extrabold transition-all",
+              "rounded-xl border px-4 py-3 text-xs font-extrabold transition-all disabled:cursor-not-allowed disabled:opacity-35",
               mode === item.id
                 ? "border-cyan/45 bg-cyan/10 text-cyan shadow-[0_0_20px_rgba(34,211,238,.12)]"
                 : "border-line bg-void/35 text-ink-mute hover:text-ink",
@@ -89,6 +90,13 @@ export default function Top10BankPicker({
           </button>
         ))}
       </div>
+
+      {questions.length === 0 && mode !== "custom" && (
+        <p className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-xs leading-6 text-gold">
+          بنك TOP 10 غير مسموح لهذه اللعبة من إدارة النظام. اختر «سؤال مخصص»
+          للمتابعة.
+        </p>
+      )}
 
       {mode === "random" && (
         <div className="rounded-2xl border border-cyan/30 bg-cyan/5 p-5">
