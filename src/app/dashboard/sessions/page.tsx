@@ -1105,6 +1105,52 @@ function SessionsPageContent() {
     });
   };
 
+  // Advance to the next scheduled TOP 10 round (multi-round support).
+  const handleNextTop10Round = async () => {
+    if (!activeSession || activeSession.gameMode !== "top10") return;
+    const rounds = activeSession.top10Rounds || [];
+    const currentIdx = activeSession.top10CurrentRoundIndex ?? 0;
+    const nextIdx = currentIdx + 1;
+    if (nextIdx >= rounds.length) {
+      setError("اكتملت جميع الجولات. يمكنك إنهاء اللعبة.");
+      return;
+    }
+    const nextRound = rounds[nextIdx];
+    if (!nextRound) return;
+
+    // Mark current as completed, load next round into the active fields
+    const updatedRounds = rounds.map((round, idx) =>
+      idx === currentIdx ? { ...round, status: "completed" as const } : round,
+    );
+
+    const roundId = `top10-${Date.now()}`;
+    setAnswersCount(0);
+    setQuestionAnswers([]);
+    await activateSessionExclusively(
+      activeSession.id,
+      activeSession.createdBy,
+      {
+        currentQuestionId: roundId,
+        questionStatus: "showing",
+        questionStartedAt: new Date(Date.now() + 3_000),
+        roundWinners: [],
+        top10Prompt: nextRound.prompt,
+        top10BankQuestionId: nextRound.bankQuestionId,
+        top10SelectionMode: nextRound.selectionMode,
+        top10Items: nextRound.items.map((item) => ({
+          id: item.id,
+          answer: item.answer,
+          aliases: item.aliases || [],
+          points: item.points,
+          revealed: false,
+        })),
+        top10Rounds: updatedRounds,
+        top10CurrentRoundIndex: nextIdx,
+      },
+    );
+    setSuccess(`بدأت الجولة ${nextIdx + 1} من ${rounds.length}.`);
+  };
+
   const handleStartChairRound = async (randomStop = false) => {
     if (!activeSession) return;
     const activePlayers = players.filter((player) => player.isActive);
@@ -3393,6 +3439,31 @@ function SessionsPageContent() {
           >
             {activeSession.gameMode === "top10" && activeTab === "control" && (
               <Card glow="subtle" className="p-5">
+                {/* Multi-round progress indicator */}
+                {(activeSession.top10Rounds || []).length > 1 && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-cyan/25 bg-cyan/5 p-3">
+                    <span className="text-xs font-bold text-cyan">
+                      الجولة {(activeSession.top10CurrentRoundIndex ?? 0) + 1} من {(activeSession.top10Rounds || []).length}
+                    </span>
+                    <div className="flex flex-1 flex-wrap gap-1">
+                      {(activeSession.top10Rounds || []).map((round, idx) => (
+                        <span
+                          key={round.id}
+                          className={cn(
+                            "grid h-6 min-w-6 place-items-center rounded-md border px-1.5 font-display text-[10px] font-black",
+                            idx === (activeSession.top10CurrentRoundIndex ?? 0)
+                              ? "border-cyan/60 bg-cyan/15 text-cyan"
+                              : round.status === "completed"
+                                ? "border-success/40 bg-success/10 text-success-bright"
+                                : "border-line bg-void/40 text-ink-faint",
+                          )}
+                        >
+                          {round.status === "completed" ? "✓" : idx + 1}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-cyan">TOP 10</p>
@@ -3418,15 +3489,28 @@ function SessionsPageContent() {
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      variant="success"
-                      onClick={() => void handleStartTop10Round()}
-                      disabled={
-                        players.filter((player) => player.isActive).length === 0
-                      }
-                    >
-                      ▶ بدء جولة TOP 10
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="success"
+                        onClick={() => void handleStartTop10Round()}
+                        disabled={
+                          players.filter((player) => player.isActive).length === 0
+                        }
+                      >
+                        ▶ بدء جولة TOP 10
+                      </Button>
+                      {activeSession.questionStatus === "revealed" &&
+                        (activeSession.top10Rounds || []).length > 1 &&
+                        (activeSession.top10CurrentRoundIndex ?? 0) <
+                          (activeSession.top10Rounds || []).length - 1 && (
+                          <Button
+                            variant="primary"
+                            onClick={() => void handleNextTop10Round()}
+                          >
+                            الجولة التالية ←
+                          </Button>
+                        )}
+                    </div>
                   )}
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-5">

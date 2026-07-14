@@ -221,6 +221,21 @@ export interface Session {
     foundByColor?: string;
     revealedByPresenter?: boolean;
   }>;
+  /** Scheduled TOP 10 rounds (multi-round support). top10Prompt/top10Items act as a mirror of the active round. */
+  top10Rounds?: Array<{
+    id: string;
+    prompt: string;
+    bankQuestionId: string | null;
+    selectionMode: "random" | "custom" | "selected";
+    items: Array<{
+      id: string;
+      answer: string;
+      aliases: string[];
+      points: number;
+    }>;
+    status?: "pending" | "active" | "completed";
+  }>;
+  top10CurrentRoundIndex?: number;
   chairCount?: number;
   chairRound?: number;
   chairResults?: Record<string, "safe" | "out">;

@@ -2244,6 +2244,11 @@ function PlayerPageContent() {
                     <p className="text-[10px] font-bold tracking-[.2em] text-cyan">
                       تحدي TOP 10
                     </p>
+                    {(session.top10Rounds || []).length > 1 && (
+                      <p className="mt-1 font-display text-xs font-black text-gold">
+                        الجولة {(session.top10CurrentRoundIndex ?? 0) + 1} من {(session.top10Rounds || []).length}
+                      </p>
+                    )}
                     <h2 className="mt-2 text-lg font-black leading-8 text-ink">
                       {session.top10Prompt}
                     </h2>

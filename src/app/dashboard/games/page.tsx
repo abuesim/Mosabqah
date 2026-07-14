@@ -339,6 +339,86 @@ export default function GamesOfficePage() {
   const [top10Entries, setTop10Entries] = useState(
     Array.from({ length: 10 }, () => ({ answer: "", aliases: "" })),
   );
+  // Multi-round TOP 10 support
+  const [top10RoundCount, setTop10RoundCount] = useState(1);
+  const [top10ActiveRoundIdx, setTop10ActiveRoundIdx] = useState(0);
+  const [top10RoundDrafts, setTop10RoundDrafts] = useState<
+    Array<{
+      prompt: string;
+      mode: Top10SelectionMode;
+      selectedId: string;
+      entries: Array<{ answer: string; aliases: string }>;
+    }>
+  >([
+    {
+      prompt: "",
+      mode: "selected",
+      selectedId: "",
+      entries: Array.from({ length: 10 }, () => ({ answer: "", aliases: "" })),
+    },
+  ]);
+
+  // Sync the "active round" mirror fields with the active draft.
+  // Whenever the active round index OR drafts change, push that draft's
+  // values into the top10Prompt/top10SelectionMode/etc. fields that the
+  // existing Top10BankPicker reads/writes.
+  useEffect(() => {
+    const draft = top10RoundDrafts[top10ActiveRoundIdx];
+    if (!draft) return;
+    setTop10Prompt(draft.prompt);
+    setTop10SelectionMode(draft.mode);
+    setTop10SelectedId(draft.selectedId);
+    setTop10Entries(
+      draft.entries.length === 10
+        ? draft.entries
+        : Array.from({ length: 10 }, (_, i) => draft.entries[i] || { answer: "", aliases: "" }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [top10ActiveRoundIdx, top10RoundDrafts]);
+
+  // Whenever the active-round mirror fields change (user edits via the picker),
+  // write them back into the active draft.
+  useEffect(() => {
+    setTop10RoundDrafts((current) =>
+      current.map((draft, idx) =>
+        idx === top10ActiveRoundIdx
+          ? {
+              ...draft,
+              prompt: top10Prompt,
+              mode: top10SelectionMode,
+              selectedId: top10SelectedId,
+              entries: top10Entries,
+            }
+          : draft,
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [top10Prompt, top10SelectionMode, top10SelectedId, top10Entries]);
+
+  // Resize the drafts array when the round count changes.
+  const changeTop10RoundCount = (next: number) => {
+    const clamped = Math.max(1, Math.min(100, next));
+    setTop10RoundCount(clamped);
+    setTop10RoundDrafts((current) => {
+      if (clamped === current.length) return current;
+      if (clamped > current.length) {
+        return [
+          ...current,
+          ...Array.from({ length: clamped - current.length }, () => ({
+            prompt: "",
+            mode: "selected" as Top10SelectionMode,
+            selectedId: "",
+            entries: Array.from({ length: 10 }, () => ({
+              answer: "",
+              aliases: "",
+            })),
+          })),
+        ];
+      }
+      return current.slice(0, clamped);
+    });
+    if (top10ActiveRoundIdx >= clamped) setTop10ActiveRoundIdx(clamped - 1);
+  };
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
@@ -787,19 +867,26 @@ export default function GamesOfficePage() {
       setStep(2);
       return;
     }
-    if (
-      gameMode === "top10" &&
-      (!top10Prompt.trim() ||
-        top10Entries.some((entry) => !entry.answer.trim()) ||
-        new Set(
-          top10Entries.map((entry) =>
-            entry.answer.trim().toLocaleLowerCase("ar"),
-          ),
-        ).size !== 10)
-    ) {
-      setError("اكتب السؤال الرئيسي و10 إجابات مختلفة للعبة TOP 10.");
-      setStep(2);
-      return;
+    if (gameMode === "top10") {
+      // Validate every scheduled round (multi-round support)
+      for (let i = 0; i < top10RoundDrafts.length; i++) {
+        const draft = top10RoundDrafts[i];
+        const answers = (draft.entries || []).map((entry) =>
+          entry.answer.trim(),
+        );
+        if (
+          !draft.prompt.trim() ||
+          answers.some((a) => !a) ||
+          new Set(answers.map((a) => a.toLocaleLowerCase("ar"))).size !== 10
+        ) {
+          setError(
+            `الجولة ${i + 1} من TOP 10 ناقصة: اكتب السؤال الرئيسي و10 إجابات مختلفة. انتقل إليها وأكملها.`,
+          );
+          setTop10ActiveRoundIdx(i);
+          setStep(2);
+          return;
+        }
+      }
     }
     if (gameMode === "money" && moneyCategories.length !== 5) {
       setError("اختر 5 فئات بالضبط للعبة فلوسك على المحك.");
@@ -916,22 +1003,39 @@ export default function GamesOfficePage() {
             }
           : {}),
         ...(gameMode === "top10"
-          ? {
-              top10Prompt: top10Prompt.trim(),
-              top10BankQuestionId:
-                top10SelectionMode === "custom" ? null : top10SelectedId,
-              top10SelectionMode,
-              top10Items: top10Entries.map((entry, index) => ({
-                id: `top10-${index + 1}`,
-                answer: entry.answer.trim(),
-                aliases: entry.aliases
-                  .split(/[،,]/)
-                  .map((alias) => alias.trim())
-                  .filter(Boolean),
-                points: index + 1,
-                revealed: false,
-              })),
-            }
+          ? (() => {
+              // Build scheduled rounds from drafts
+              const rounds = top10RoundDrafts.map((draft, roundIdx) => ({
+                id: `round-${roundIdx + 1}`,
+                prompt: draft.prompt.trim(),
+                bankQuestionId:
+                  draft.mode === "custom" ? null : draft.selectedId,
+                selectionMode: draft.mode,
+                items: draft.entries.map((entry, itemIdx) => ({
+                  id: `round-${roundIdx + 1}-item-${itemIdx + 1}`,
+                  answer: entry.answer.trim(),
+                  aliases: entry.aliases
+                    .split(/[،,]/)
+                    .map((alias) => alias.trim())
+                    .filter(Boolean),
+                  points: itemIdx + 1,
+                })),
+                status: "pending" as const,
+              }));
+              const first = rounds[0];
+              return {
+                // Mirror the first round into the active fields
+                top10Prompt: first.prompt,
+                top10BankQuestionId: first.bankQuestionId,
+                top10SelectionMode: first.selectionMode,
+                top10Items: first.items.map((item) => ({
+                  ...item,
+                  revealed: false,
+                })),
+                top10Rounds: rounds,
+                top10CurrentRoundIndex: 0,
+              };
+            })()
           : {}),
       });
       router.push(
@@ -1332,24 +1436,121 @@ export default function GamesOfficePage() {
               )}
             </div>
           ) : gameMode === "top10" ? (
-            <Top10BankPicker
-              questions={
-                gameQuestionRules.top10?.bankEnabled === false
-                  ? []
-                  : top10Questions
-              }
-              mode={top10SelectionMode}
-              onModeChange={(mode) => {
-                setTop10SelectionMode(mode);
-                if (mode === "custom") setTop10SelectedId("");
-              }}
-              selectedId={top10SelectedId}
-              onChooseQuestion={applyTop10BankQuestion}
-              prompt={top10Prompt}
-              onPromptChange={setTop10Prompt}
-              entries={top10Entries}
-              onEntriesChange={setTop10Entries}
-            />
+            <div className="space-y-5">
+              {/* Round counter + navigation */}
+              <div className="rounded-2xl border border-cyan/30 bg-cyan/5 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-black text-cyan">عدد الجولات</h3>
+                    <p className="mt-1 text-xs text-ink-mute">
+                      اختر عدد الأسئلة/الجولات (من 1 إلى 100)، ثم املأ كل جولة.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => changeTop10RoundCount(top10RoundCount - 1)}
+                      disabled={top10RoundCount <= 1}
+                      className="grid h-10 w-10 cursor-pointer place-items-center rounded-xl border border-cyan/30 bg-cyan/10 text-lg font-black text-cyan transition-all hover:bg-cyan/20 disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label="إنقاص"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={top10RoundCount}
+                      onChange={(e) => changeTop10RoundCount(parseInt(e.target.value || "1", 10))}
+                      className="w-20 rounded-xl border border-cyan/30 bg-void/60 px-3 py-2.5 text-center font-display text-xl font-black text-cyan outline-none focus:border-cyan/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => changeTop10RoundCount(top10RoundCount + 1)}
+                      disabled={top10RoundCount >= 100}
+                      className="grid h-10 w-10 cursor-pointer place-items-center rounded-xl border border-cyan/30 bg-cyan/10 text-lg font-black text-cyan transition-all hover:bg-cyan/20 disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label="زيادة"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Round navigation tabs (only when >1 round) */}
+                {top10RoundCount > 1 && (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTop10ActiveRoundIdx(Math.max(0, top10ActiveRoundIdx - 1))}
+                        disabled={top10ActiveRoundIdx === 0}
+                        className="flex cursor-pointer items-center gap-1 rounded-lg border border-line bg-void/50 px-3 py-2 text-xs font-bold text-ink-soft transition-all hover:border-cyan/30 hover:text-cyan disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <ChevronRight className="h-4 w-4" /> السابقة
+                      </button>
+                      <span className="font-display text-sm font-black text-cyan">
+                        الجولة {top10ActiveRoundIdx + 1} من {top10RoundCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTop10ActiveRoundIdx(Math.min(top10RoundCount - 1, top10ActiveRoundIdx + 1))}
+                        disabled={top10ActiveRoundIdx === top10RoundCount - 1}
+                        className="flex cursor-pointer items-center gap-1 rounded-lg border border-line bg-void/50 px-3 py-2 text-xs font-bold text-ink-soft transition-all hover:border-cyan/30 hover:text-cyan disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        التالية <ChevronLeft className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {/* Visual round dots */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {top10RoundDrafts.map((draft, idx) => {
+                        const isActive = idx === top10ActiveRoundIdx;
+                        const isFilled =
+                          draft.prompt.trim() &&
+                          draft.entries.every((e) => e.answer.trim());
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setTop10ActiveRoundIdx(idx)}
+                            className={cn(
+                              "grid h-8 min-w-8 cursor-pointer place-items-center rounded-lg border px-2 font-display text-xs font-black transition-all",
+                              isActive
+                                ? "border-cyan/60 bg-cyan/15 text-cyan shadow-[var(--shadow-cyan)]"
+                                : isFilled
+                                  ? "border-success/40 bg-success/10 text-success-bright"
+                                  : "border-line bg-void/40 text-ink-faint hover:border-cyan/30",
+                            )}
+                            title={`الجولة ${idx + 1}`}
+                          >
+                            {isFilled && !isActive ? "✓" : idx + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Active round editor (Top10BankPicker reads from mirror fields) */}
+              <Top10BankPicker
+                questions={
+                  gameQuestionRules.top10?.bankEnabled === false
+                    ? []
+                    : top10Questions
+                }
+                mode={top10SelectionMode}
+                onModeChange={(mode) => {
+                  setTop10SelectionMode(mode);
+                  if (mode === "custom") setTop10SelectedId("");
+                }}
+                selectedId={top10SelectedId}
+                onChooseQuestion={applyTop10BankQuestion}
+                prompt={top10Prompt}
+                onPromptChange={setTop10Prompt}
+                entries={top10Entries}
+                onEntriesChange={setTop10Entries}
+              />
+            </div>
           ) : gameMode === "money" ? (
             <div className="space-y-5">
               <div className="rounded-2xl border border-gold/30 bg-gold/5 p-5">

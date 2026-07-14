@@ -1158,6 +1158,11 @@ function TvPageContent() {
               <p className="text-sm font-bold tracking-[.3em] text-cyan">
                 TOP 10
               </p>
+              {(session.top10Rounds || []).length > 1 && (
+                <p className="mt-1 font-display text-sm font-black text-gold">
+                  الجولة {(session.top10CurrentRoundIndex ?? 0) + 1} من {(session.top10Rounds || []).length}
+                </p>
+              )}
               <h2 className="anim-typewriter-rtl mt-3 font-sans text-3xl font-black leading-tight text-ink md:text-5xl">
                 {session.top10Prompt}
               </h2>
